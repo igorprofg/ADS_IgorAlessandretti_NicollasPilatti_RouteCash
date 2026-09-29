@@ -1,0 +1,30 @@
+# Dependências
+**/node_modules/
+
+# Variáveis de ambiente
+**/.env
+**/.env.local
+
+# Builds
+**/dist/
+**/build/
+
+# Prisma
+backend/prisma/migrations/dev.db
+
+# Logs
+**/*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Flutter / Mobile (ajustar conforme o Nicollas precisar)
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugin-dependencies
