@@ -1,0 +1,245 @@
+// ============================================
+// RouteCash - Schema do Banco de Dados
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum TipoUsuario {
+  MOTORISTA
+  ADMINISTRADOR
+}
+
+enum StatusConta {
+  ATIVO
+  SUSPENSO
+  BLOQUEADO
+}
+
+enum SituacaoAssinatura {
+  ATIVA
+  SUSPENSA
+  CANCELADA
+}
+
+enum SituacaoPagamento {
+  PAGO
+  PENDENTE
+  VENCIDO
+}
+
+// ============================================
+// USUARIO (RF01, RF02)
+// ============================================
+
+model Usuario {
+  id_usuario        String      @id @default(uuid()) @db.Uuid
+  nome              String      @db.VarChar(100)
+  email             String      @unique @db.VarChar(150)
+  senha_hash        String      @db.VarChar(255)
+  tipo_usuario      TipoUsuario
+  status_conta      StatusConta @default(ATIVO)
+  aceite_termos_em  DateTime
+  data_cadastro     DateTime    @default(now())
+  data_atualizacao  DateTime    @updatedAt
+
+  veiculos          Veiculo[]
+  plataformas       Plataforma[]
+  categorias_despesa CategoriaDespesa[]
+  jornadas          Jornada[]
+  assinaturas       Assinatura[]
+
+  @@map("usuario")
+}
+
+// ============================================
+// VEICULO (RF03)
+// ============================================
+
+model Veiculo {
+  id_veiculo       String   @id @default(uuid()) @db.Uuid
+  id_usuario       String   @db.Uuid
+  marca            String   @db.VarChar(50)
+  modelo           String   @db.VarChar(50)
+  ano              Int
+  combustivel      String   @db.VarChar(30)
+  consumo_medio    Decimal  @db.Decimal(6, 2)
+  placa            String?  @unique @db.VarChar(10)
+  principal        Boolean  @default(false)
+  ativo            Boolean  @default(true)
+  data_cadastro    DateTime @default(now())
+  data_atualizacao DateTime @updatedAt
+
+  usuario  Usuario   @relation(fields: [id_usuario], references: [id_usuario])
+  ganhos   Ganho[]
+  despesas Despesa[]
+  jornadas Jornada[]
+
+  @@map("veiculo")
+}
+
+// ============================================
+// PLATAFORMA (RF04)
+// ============================================
+
+model Plataforma {
+  id_plataforma    String   @id @default(uuid()) @db.Uuid
+  id_usuario       String   @db.Uuid
+  nome             String   @db.VarChar(60)
+  padrao           Boolean  @default(false)
+  ativa            Boolean  @default(true)
+  data_cadastro    DateTime @default(now())
+  data_atualizacao DateTime @updatedAt
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+  ganhos  Ganho[]
+
+  @@unique([nome, id_usuario])
+  @@map("plataforma")
+}
+
+// ============================================
+// CATEGORIA_DESPESA (RF06 / HU21)
+// ============================================
+
+model CategoriaDespesa {
+  id_categoria     String   @id @default(uuid()) @db.Uuid
+  id_usuario       String?  @db.Uuid
+  nome             String   @db.VarChar(50)
+  data_cadastro    DateTime @default(now())
+  data_atualizacao DateTime @updatedAt
+
+  usuario  Usuario?  @relation(fields: [id_usuario], references: [id_usuario])
+  despesas Despesa[]
+
+  @@unique([nome, id_usuario])
+  @@map("categoria_despesa")
+}
+
+// ============================================
+// GANHO (RF05)
+// ============================================
+
+model Ganho {
+  id_ganho         String   @id @default(uuid()) @db.Uuid
+  id_veiculo       String   @db.Uuid
+  id_plataforma    String   @db.Uuid
+  valor            Decimal  @db.Decimal(12, 2)
+  data             DateTime @db.Date
+  data_cadastro    DateTime @default(now())
+  data_atualizacao DateTime @updatedAt
+
+  veiculo    Veiculo    @relation(fields: [id_veiculo], references: [id_veiculo])
+  plataforma Plataforma @relation(fields: [id_plataforma], references: [id_plataforma])
+
+  @@map("ganho")
+}
+
+// ============================================
+// DESPESA (RF06)
+// ============================================
+
+model Despesa {
+  id_despesa       String   @id @default(uuid()) @db.Uuid
+  id_veiculo       String   @db.Uuid
+  id_categoria     String   @db.Uuid
+  valor            Decimal  @db.Decimal(12, 2)
+  data             DateTime @db.Date
+  data_cadastro    DateTime @default(now())
+  data_atualizacao DateTime @updatedAt
+
+  veiculo   Veiculo          @relation(fields: [id_veiculo], references: [id_veiculo])
+  categoria CategoriaDespesa @relation(fields: [id_categoria], references: [id_categoria])
+
+  @@map("despesa")
+}
+
+// ============================================
+// JORNADA (RF07, RF08)
+// ============================================
+
+model Jornada {
+  id_jornada       String    @id @default(uuid()) @db.Uuid
+  id_usuario       String    @db.Uuid
+  id_veiculo       String    @db.Uuid
+  inicio           DateTime
+  fim              DateTime?
+  km_rodados       Decimal?  @db.Decimal(8, 2)
+  data_cadastro    DateTime  @default(now())
+  data_atualizacao DateTime  @updatedAt
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+  veiculo Veiculo @relation(fields: [id_veiculo], references: [id_veiculo])
+
+  @@map("jornada")
+}
+
+// ============================================
+// PLANO (RF16)
+// ============================================
+
+model Plano {
+  id_plano         String   @id @default(uuid()) @db.Uuid
+  nome             String   @db.VarChar(60)
+  valor            Decimal  @db.Decimal(12, 2)
+  periodo_cobranca String   @db.VarChar(30)
+  beneficios       String   @db.Text
+  ativo            Boolean  @default(true)
+  data_cadastro    DateTime @default(now())
+  data_atualizacao DateTime @updatedAt
+
+  assinaturas Assinatura[]
+
+  @@map("plano")
+}
+
+// ============================================
+// ASSINATURA (RF13, RF17)
+// ============================================
+
+model Assinatura {
+  id_assinatura     String             @id @default(uuid()) @db.Uuid
+  id_usuario        String             @db.Uuid
+  id_plano          String             @db.Uuid
+  data_inicio       DateTime           @db.Date
+  data_vencimento   DateTime           @db.Date
+  situacao          SituacaoAssinatura @default(ATIVA)
+  data_cancelamento DateTime?
+  data_cadastro     DateTime           @default(now())
+  data_atualizacao  DateTime           @updatedAt
+
+  usuario    Usuario     @relation(fields: [id_usuario], references: [id_usuario])
+  plano      Plano       @relation(fields: [id_plano], references: [id_plano])
+  pagamentos Pagamento[]
+
+  @@map("assinatura")
+}
+
+// ============================================
+// PAGAMENTO (RF14, RF18)
+// ============================================
+
+model Pagamento {
+  id_pagamento     String            @id @default(uuid()) @db.Uuid
+  id_assinatura    String            @db.Uuid
+  valor            Decimal           @db.Decimal(12, 2)
+  data_vencimento  DateTime          @db.Date
+  data_pagamento   DateTime?         @db.Date
+  situacao         SituacaoPagamento @default(PENDENTE)
+  data_cadastro    DateTime          @default(now())
+  data_atualizacao DateTime          @updatedAt
+
+  assinatura Assinatura @relation(fields: [id_assinatura], references: [id_assinatura])
+
+  @@map("pagamento")
+}

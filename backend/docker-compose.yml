@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: routecash-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: routecash
+      POSTGRES_PASSWORD: routecash
+      POSTGRES_DB: routecash
+    ports:
+      - "5454:5432"
+    volumes:
+      - routecash-db-data:/var/lib/postgresql/data
+
+volumes:
+  routecash-db-data:
