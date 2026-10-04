@@ -71,6 +71,15 @@ fix(mobile): ajusta validação do campo email
 - Commits sempre a partir da pasta raiz do repositório, nunca de dentro de `backend/`, `frontend/` ou `mobile/` isoladamente.
 
 ---
+### 29/09/2026 — Nicollas
+**O que foi feito:**
+- Realizada a instalçaõ das dependencias necessárias para rodar a parte mobile do projeto, integrações com o banco de dados e estruturação de pastas padrões dart/flutter
+**Próximos passos:**
+- Implemntar RF01 no projeto mobile e teste de integração com a parte web
+**Dificuldades:**
+- Por ter mitas dependencias e diferentes ferramentas, algumas deram alguns erros por conta do SO, como o docker por exemplo, que foi necessario alguns ajustes para rodar ele no windows 
+
+
 
 ### 01/10/2026 — Igor
 **O que foi feito:**
@@ -91,6 +100,52 @@ fix(mobile): ajusta validação do campo email
 - É obrigatório adicionar as chaves `JWT_SECRET` e `JWT_EXPIRES_IN` no arquivo `.env` para que o servidor suba corretamente.
 
 ---
+
+### 04/10/2026 — Nicollas Início do desenvolvimento mobile e RF01
+
+**O que foi feito:**
+- Configurado e validado o ambiente Flutter para desenvolvimento Android.
+- Aplicativo executado com sucesso em celular físico via USB.
+- Criada a estrutura inicial do projeto mobile para organização por funcionalidades.
+- Criados os arquivos:
+  - `lib/core/config/app_config.dart`
+  - `lib/core/network/dio_client.dart`
+  - `lib/features/users/data/create_user_request.dart`
+  - `lib/features/users/data/user_repository.dart`
+  - `lib/features/users/providers/user_providers.dart`
+  - `lib/features/users/presentation/register_page.dart`
+- Configurado o Dio para comunicação do aplicativo com a API NestJS.
+- Configurado Riverpod no aplicativo.
+- Iniciado o desenvolvimento do **RF01 – Manter Usuários**, com foco na **HU03 – Criar Usuário**.
+- Implementada tela de cadastro com nome, e-mail, senha, confirmação de senha e aceite dos Termos de Uso.
+- Implementadas validações de campos obrigatórios, e-mail, senha mínima de 6 caracteres, confirmação de senha e aceite dos termos.
+- Ajustada a integração para o endpoint `POST /usuarios`.
+- Ajustado o JSON enviado pelo Flutter conforme o `CriarUsuarioDto` do backend.
+- Configurado acesso do celular ao backend utilizando `adb reverse`.
+- Adicionado `android:usesCleartextTraffic="true"` no `AndroidManifest.xml` para permitir comunicação HTTP durante o desenvolvimento.
+- Corrigido o teste padrão do Flutter em `test/widget_test.dart`.
+- Executados `flutter analyze` e `flutter test` com sucesso.
+- Corrigida dependência `dotenv` ausente no backend.
+- Validado cadastro real de usuários pelo aplicativo no PostgreSQL através do Prisma Studio.
+- Confirmada a criação automática das plataformas padrão **Uber, 99 e inDrive** para novos usuários.
+
+**Próximos passos:**
+- Corrigir a tela preta apresentada após a criação bem-sucedida da conta.
+- Direcionar o usuário para a tela de login após concluir o cadastro.
+- Finalizar as demais operações do RF01: consultar, editar e excluir perfil.
+- Iniciar o RF02 – Gerenciar Login e autenticação JWT.
+
+**Dificuldades:**
+- Configuração inicial das ferramentas Android sem depender do Android Studio para desenvolvimento.
+- Backend não iniciava devido à ausência da dependência `dotenv`.
+- Prisma apresentou erro `P1001` porque o PostgreSQL no Docker não estava iniciado.
+- Comunicação inicial entre celular e API exigiu configuração de `adb reverse` e liberação de HTTP no Android.
+- Tela ficou preta após o cadastro devido ao fluxo de navegação do Flutter ainda não estar finalizado.
+
+**Observações:**
+- O fluxo de cadastro já está funcional de ponta a ponta: **Flutter → NestJS → Prisma → PostgreSQL**.
+- As senhas são armazenadas no banco em formato de hash.
+- A criação automática das três plataformas padrão foi confirmada no banco.
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--
