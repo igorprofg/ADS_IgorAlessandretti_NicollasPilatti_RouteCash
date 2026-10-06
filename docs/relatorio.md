@@ -147,6 +147,27 @@ fix(mobile): ajusta validação do campo email
 - As senhas são armazenadas no banco em formato de hash.
 - A criação automática das três plataformas padrão foi confirmada no banco.
 
+
+### 06/10/2026 — Igor
+
+**O que foi feito:**
+- RF03 – Manter Veículos implementado (HU06-HU09): cadastrar, editar, excluir (soft delete via campo `ativo`, preservando histórico de ganhos/despesas) e definir veículo principal.
+- RF04 – Manter Plataformas implementado (HU10-HU13): listar plataformas do usuário (padrão + personalizadas), cadastrar plataforma personalizada, bloquear edição de plataformas padrão, alternar status ativa/inativa.
+- Testes completos no Postman para os dois módulos, incluindo cenários de erro (placa duplicada, nome de plataforma duplicado, tentativa de editar plataforma padrão).
+- Corrigido o tratamento de erro de placa duplicada em Veículo, que inicialmente retornava 500 (erro não tratado do Prisma) e passou a retornar 409 Conflict com mensagem amigável.
+
+**Próximos passos:**
+- Implementar RF05 – Manter Ganhos (HU14-HU17).
+- Implementar RF06 – Manter Despesas (HU18-HU21).
+
+**Dificuldades:**
+- Nenhuma dificuldade técnica relevante nesta semana — os módulos seguiram o mesmo padrão já validado em RF01/RF02.
+
+**Observações:**
+- GANHO e DESPESA (próximos módulos) não têm FK direta pra USUARIO — a posse precisa ser validada manualmente no service, via o veículo (e plataforma/categoria) vinculado.
+
+
+
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--
 ### DD/MM/AAAA — Nome
