@@ -166,7 +166,18 @@ fix(mobile): ajusta validação do campo email
 **Observações:**
 - GANHO e DESPESA (próximos módulos) não têm FK direta pra USUARIO — a posse precisa ser validada manualmente no service, via o veículo (e plataforma/categoria) vinculado.
 
+**Feat:**
 
+- RF03 - Manter Veiculos (HU06-HU09):
+  * CRUD completo, soft delete (campo ativo) e definicao de veiculo principal via transaction.
+  * Tratamento de erro 409 Conflict para placas duplicadas.
+
+- RF04 - Manter Plataformas (HU10-HU13):
+  * Listagem de plataformas padrao e customizadas.
+  * Bloqueio de edicao das plataformas padrao (403 Forbidden) e alternancia de status.
+
+- Planejamento proxima entrega (Prazo: 12/10/2026 as 23:59):
+  * Inicio da implementacao do RF05 (Ganhos) e RF06 (Despesas)."
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--
