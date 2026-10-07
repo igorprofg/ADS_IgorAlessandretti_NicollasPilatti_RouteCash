@@ -63,20 +63,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
       if (!mounted) return;
 
+      Navigator.pop(context, true);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Conta criada com sucesso.')),
+        const SnackBar(content: Text('Conta criada com sucesso!')),
       );
-
-      _nomeController.clear();
-      _emailController.clear();
-      _senhaController.clear();
-      _confirmarSenhaController.clear();
-
-      setState(() {
-        _aceitouTermos = false;
-      });
-
-      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/users/presentation/register_page.dart';
+import 'features/auth/presentation/auth_gate.dart';
 
 void main() {
   runApp(const ProviderScope(child: RouteCashApp()));
@@ -12,10 +12,10 @@ class RouteCashApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       title: 'Route Cash',
       debugShowCheckedModeBanner: false,
-      home: const RegisterPage(),
+      home: AuthGate(),
     );
   }
 }

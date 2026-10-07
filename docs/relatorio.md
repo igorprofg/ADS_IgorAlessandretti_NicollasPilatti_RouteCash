@@ -179,6 +179,68 @@ fix(mobile): ajusta validação do campo email
 - Planejamento proxima entrega (Prazo: 12/10/2026 as 23:59):
   * Inicio da implementacao do RF05 (Ganhos) e RF06 (Despesas)."
 
+  ### 06/10/2026 — Nicollas Implementação do Login, JWT e Controle de Sessão
+
+**O que foi feito:**
+- Corrigido o fluxo após a criação de usuário, eliminando a tela preta apresentada depois do cadastro.
+- Ajustada a navegação para que a aplicação inicie pela tela de login e permita acessar a tela de criação de conta.
+- Após o cadastro bem-sucedido, o usuário passou a retornar corretamente para a tela de login.
+- Criada a estrutura inicial da autenticação no mobile.
+- Criados os arquivos:
+  - `lib/features/auth/data/login_request.dart`
+  - `lib/features/auth/data/login_response.dart`
+  - `lib/features/auth/data/auth_repository.dart`
+  - `lib/features/auth/providers/auth_providers.dart`
+  - `lib/features/auth/presentation/login_page.dart`
+  - `lib/features/auth/presentation/auth_gate.dart`
+  - `lib/core/storage/secure_storage.dart`
+  - `lib/features/home/presentation/home_page.dart`
+- Modificados os arquivos:
+  - `lib/main.dart`
+  - `lib/core/network/dio_client.dart`
+  - `lib/features/users/data/user_repository.dart`
+  - `lib/features/users/presentation/register_page.dart`
+  - `test/widget_test.dart`
+- Implementado login utilizando o endpoint `POST /autenticacao/login`.
+- Integrado o formulário de login com e-mail e senha aos usuários já cadastrados no PostgreSQL.
+- Implementado tratamento de credenciais inválidas e contas sem acesso válido.
+- Implementado recebimento do JWT retornado pelo backend após autenticação.
+- Configurado `FlutterSecureStorage` para armazenamento seguro do token JWT.
+- Configurado o Dio para adicionar automaticamente o token JWT no cabeçalho:
+  - `Authorization: Bearer <token>`
+- Integrada e testada a rota protegida `GET /usuarios/me`.
+- Validado que o usuário autenticado consegue consultar apenas os dados do próprio perfil.
+- Criada uma tela inicial provisória (`HomePage`) exibindo os dados do usuário autenticado.
+- Implementado `AuthGate` para verificar a existência de uma sessão salva ao iniciar o aplicativo.
+- Implementado botão de logout.
+- No logout, o JWT armazenado é removido e o usuário retorna para a tela de login.
+- Testado com sucesso o fluxo de login, autenticação, consulta de perfil e logout no celular físico.
+
+**Próximos passos:**
+- Validar completamente a manutenção da sessão ao fechar e abrir novamente o aplicativo.
+- Continuar o RF01 – Manter Usuários.
+- Implementar edição dos dados do próprio perfil utilizando `PATCH /usuarios/me`.
+- Implementar exclusão da própria conta utilizando `DELETE /usuarios/me`.
+- Criar uma tela definitiva de perfil do usuário.
+- Após finalizar o gerenciamento de usuários e autenticação, iniciar o desenvolvimento do RF03 – Manter Veículos.
+
+**Dificuldades:**
+- Tela preta após o cadastro devido ao fluxo de navegação enquanto a tela de cadastro ainda era a rota inicial do aplicativo.
+- Erro do Riverpod após alteração de `StatefulWidget` para `ConsumerStatefulWidget`, solucionado com reinicialização completa do aplicativo.
+- Erro de construtor da `HomePage` causado por alterações estruturais aplicadas durante o Hot Reload, solucionado com `flutter clean` e nova execução do aplicativo.
+- Ajustes necessários no código após a mudança da Home para buscar os dados diretamente através da rota protegida `/usuarios/me`.
+- Correção de warnings de imports e variáveis não utilizadas durante a implementação.
+
+**Observações:**
+- O cadastro de usuários continua funcionando normalmente.
+- O login já utiliza usuários reais cadastrados no PostgreSQL.
+- As senhas continuam sendo validadas pelo backend através do `bcrypt`.
+- O JWT é armazenado no dispositivo através do `FlutterSecureStorage`.
+- As requisições protegidas já enviam automaticamente o JWT através do Dio.
+- O endpoint `GET /usuarios/me` foi testado com sucesso após o login.
+- O botão de sair remove corretamente o token e retorna o usuário para a tela de login.
+- O fluxo atual já permite: **Cadastrar usuário → Fazer login → Autenticar com JWT → Consultar perfil → Sair do sistema**.
+
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--
 ### DD/MM/AAAA — Nome
