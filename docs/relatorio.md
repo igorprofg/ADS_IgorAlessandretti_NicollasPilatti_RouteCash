@@ -241,6 +241,28 @@ fix(mobile): ajusta validação do campo email
 - O botão de sair remove corretamente o token e retorna o usuário para a tela de login.
 - O fluxo atual já permite: **Cadastrar usuário → Fazer login → Autenticar com JWT → Consultar perfil → Sair do sistema**.
 
+### 12/10/2026 — Igor
+
+**O que foi feito:**
+- RF05 – Manter Ganhos implementado (HU14-HU17): registrar, listar, editar, excluir (exclusão física) e duplicar ganho. Como GANHO não tem FK direta para USUARIO, a posse é validada no service, conferindo se o veículo e a plataforma informados pertencem ao usuário autenticado.
+- RF06 – Manter Despesas implementado (HU18-HU21): CRUD de despesas vinculado a um veículo ativo do usuário e a uma categoria válida. Criado também o módulo `categorias-despesa` (HU21), com categorias padrão (criadas automaticamente na inicialização via `onModuleInit`) e categorias personalizadas, com bloqueio de duplicidade sem diferenciar maiúsculas de minúsculas.
+- `ValidationPipe` global ativado no `main.ts`. Até então as validações dos DTOs (class-validator) não estavam sendo aplicadas; após a ativação, RF01 a RF04 foram retestados.
+- Correção da RN26 no RF05: criar e duplicar ganho agora recusam plataforma inativa e veículo removido (antes somente a listagem filtrava).
+- Todos os cenários testados no Postman: CRUD completo, validações (400), duplicidade (409) e posse de recursos (404).
+
+**Próximos passos:**
+- Semana 4: RF07 – Gerenciar Jornada, RF08 – Registrar Quilometragem e RF09 – Calcular Indicadores Financeiros (MVP funcional).
+
+**Dificuldades:**
+- Os testes de valor negativo inicialmente falharam porque o `ValidationPipe` não estava ativado, então os decorators dos DTOs eram ignorados. Resolvido ativando o pipe globalmente no `main.ts`.
+
+**Observações:**
+- O `main.ts` precisa manter `import 'dotenv/config'`, `app.enableCors()` (necessário para o React consumir a API) e o `ValidationPipe`.
+- Categorias padrão são linhas compartilhadas (`id_usuario` nulo); plataformas padrão são uma cópia por usuário (`padrao = true`).
+- Exclusão de ganho e de despesa é física, pois o lançamento é o próprio dado financeiro. Já o veículo usa exclusão lógica (`ativo = false`) para preservar o histórico.
+- Pendência: limitar o tamanho dos textos nos DTOs antigos com `@MaxLength`, para evitar erro 500 quando o valor excede o tamanho da coluna.
+
+
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--
 ### DD/MM/AAAA — Nome
