@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../users/providers/user_providers.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../auth/presentation/login_page.dart';
+import '../../users/presentation/profile_page.dart';
+import '../../users/providers/user_providers.dart';
+import '../../vehicles/presentation/vehicle_list_page.dart';
+import '../../platforms/presentation/platform_list_page.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -25,18 +28,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     Future.microtask(_carregarPerfil);
   }
 
-  Future<void> _sair() async {
-    await SecureStorage.deleteToken();
-
-    if (!mounted) return;
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-      (route) => false,
-    );
-  }
-
   Future<void> _carregarPerfil() async {
     try {
       final repository = ref.read(userRepositoryProvider);
@@ -47,6 +38,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       setState(() {
         _usuario = usuario;
+        _erro = null;
         _carregando = false;
       });
     } catch (e) {
@@ -59,12 +51,55 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
   }
 
+  Future<void> _abrirPerfil() async {
+    final atualizado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (context) => const ProfilePage()),
+    );
+
+    if (!mounted) return;
+
+    if (atualizado == true) {
+      await _carregarPerfil();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perfil atualizado com sucesso.')),
+      );
+    }
+  }
+
+  Future<void> _abrirVeiculos() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const VehicleListPage()),
+    );
+  }
+
+  Future<void> _sair() async {
+    await SecureStorage.deleteToken();
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Route Cash'),
         actions: [
+          IconButton(
+            onPressed: _abrirPerfil,
+            icon: const Icon(Icons.person),
+            tooltip: 'Meu Perfil',
+          ),
           IconButton(
             onPressed: _sair,
             icon: const Icon(Icons.logout),
@@ -100,6 +135,41 @@ class _HomePageState extends ConsumerState<HomePage> {
                   const SizedBox(height: 32),
 
                   const Text('Usuário autenticado com sucesso.'),
+
+                  const SizedBox(height: 32),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _abrirVeiculos,
+                      icon: const Icon(Icons.directions_car),
+                      label: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        child: Text('Meus Veículos'),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PlatformListPage(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.apps),
+                      label: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        child: Text('Minhas Plataformas'),
+                      ),
+                    ),
+                  ),
                 ],
               ),
       ),

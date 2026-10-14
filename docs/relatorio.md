@@ -262,6 +262,95 @@ fix(mobile): ajusta validação do campo email
 - Exclusão de ganho e de despesa é física, pois o lançamento é o próprio dado financeiro. Já o veículo usa exclusão lógica (`ativo = false`) para preservar o histórico.
 - Pendência: limitar o tamanho dos textos nos DTOs antigos com `@MaxLength`, para evitar erro 500 quando o valor excede o tamanho da coluna.
 
+### 13/10/2026 — Nicollas Continuação do desenvolvimento mobile: Perfil, Veículos e Plataformas
+
+**O que foi feito:**
+- Dado prosseguimento ao desenvolvimento do aplicativo mobile do Route Cash.
+- Finalizada a parte de manutenção do perfil do usuário no RF01.
+- Implementada a tela `Meu Perfil`, utilizando os dados da rota protegida `GET /usuarios/me`.
+- Implementada edição do nome do usuário através de `PATCH /usuarios/me`.
+- Mantidos e-mail e tipo de usuário como campos somente leitura, conforme regras do backend.
+- Ajustada a Home para atualizar automaticamente o nome exibido em `Olá, usuário!` após uma alteração no perfil.
+- Implementado encerramento de conta através de `DELETE /usuarios/me`.
+- Validado que o encerramento não remove fisicamente o usuário, alterando `status_conta` para `BLOQUEADO`.
+- Implementada remoção do JWT após o encerramento da conta e retorno automático para a tela de login.
+- Validado que usuários bloqueados não conseguem realizar novo login, recebendo a mensagem `Conta inativa ou bloqueada`.
+
+- Iniciado e implementado o **RF03 – Manter Veículos**.
+- Criada a estrutura:
+  - `lib/features/vehicles/data/vehicle.dart`
+  - `lib/features/vehicles/data/create_vehicle_request.dart`
+  - `lib/features/vehicles/data/update_vehicle_request.dart`
+  - `lib/features/vehicles/data/vehicle_repository.dart`
+  - `lib/features/vehicles/providers/vehicle_providers.dart`
+  - `lib/features/vehicles/presentation/vehicle_list_page.dart`
+  - `lib/features/vehicles/presentation/vehicle_form_page.dart`
+- Implementada listagem dos veículos do usuário autenticado.
+- Implementado cadastro de veículos com:
+  - marca;
+  - modelo;
+  - ano;
+  - combustível;
+  - consumo médio;
+  - placa opcional.
+- Implementada edição de veículos.
+- Implementada definição de veículo principal.
+- Implementada remoção de veículo utilizando soft delete.
+- Validado que veículos removidos permanecem no banco com `ativo = false`, preservando o histórico.
+- Adicionado acesso a `Meus Veículos` na Home.
+- Identificada a necessidade de permitir reativação de veículos inativos para evitar novo cadastro com uma placa já existente.
+- Criada inicialmente a estrutura mobile para listagem e reativação de veículos inativos.
+- A alteração necessária no backend para reativação ficou pendente para alinhamento com o responsável pelo backend.
+- Restaurado o botão de cadastro de veículos e o acesso a `Meus Veículos` após ajustes na tela.
+
+- Iniciado e implementado o **RF04 – Manter Plataformas**.
+- Criada a estrutura:
+  - `lib/features/platforms/data/platform.dart`
+  - `lib/features/platforms/data/platform_repository.dart`
+  - `lib/features/platforms/providers/platform_providers.dart`
+  - `lib/features/platforms/presentation/platform_list_page.dart`
+  - `lib/features/platforms/presentation/platform_form_page.dart`
+- Implementada listagem das plataformas vinculadas ao usuário autenticado.
+- Validada exibição automática das plataformas padrão:
+  - Uber;
+  - 99;
+  - inDrive.
+- Implementado cadastro de plataformas personalizadas.
+- Implementada edição somente para plataformas personalizadas.
+- Plataformas padrão foram mantidas sem opção de edição, conforme regra do backend.
+- Implementada ativação e inativação de plataformas.
+- Validado tratamento de nomes duplicados através das regras existentes no backend.
+- Adicionado acesso a `Minhas Plataformas` na Home.
+- RF04 testado com sucesso no celular físico.
+
+**Próximos passos:**
+- Alinhar com o responsável pelo backend a implementação das rotas para listar e reativar veículos inativos.
+- Finalizar a funcionalidade de reativação de veículos após os ajustes no backend.
+- Iniciar o **RF05 – Registrar Ganhos**.
+- Implementar listagem e cadastro de ganhos vinculando:
+  - veículo;
+  - plataforma;
+  - data;
+  - valor.
+- Implementar posteriormente edição, exclusão e duplicação de ganhos.
+- Utilizar somente veículos ativos e plataformas ativas nos novos lançamentos.
+
+**Dificuldades:**
+- O `adb reverse` precisou ser configurado novamente para restabelecer a comunicação entre o celular físico e o backend.
+- Durante alguns ajustes, botões da Home e da tela de veículos foram removidos acidentalmente ao substituir arquivos completos, sendo posteriormente restaurados.
+- A tentativa de acessar veículos inativos gerou `Internal Server Error` no backend.
+- Foi identificado que a rota `/veiculos/inativos` estava sendo interpretada como `/veiculos/:id`, fazendo o Prisma tentar converter `inativos` para UUID.
+- A correção definitiva dessa rota foi adiada para alinhamento com o integrante responsável pelo backend.
+- Foi necessário ajustar a atualização da Home após editar o nome do usuário, pois inicialmente o novo nome só aparecia após sair e realizar login novamente.
+
+**Observações:**
+- O fluxo de gerenciamento de usuário está funcionando com cadastro, login, consulta, edição, encerramento e bloqueio de acesso.
+- O RF03 está funcional para cadastro, listagem, edição, definição de principal e soft delete de veículos.
+- A reativação de veículos inativos depende apenas do ajuste pendente no backend.
+- O RF04 está funcional para plataformas padrão e personalizadas.
+- Todas as operações protegidas continuam utilizando o JWT armazenado no `FlutterSecureStorage` e enviado automaticamente pelo Dio.
+- O aplicativo foi testado durante o desenvolvimento em celular Android físico conectado via USB.
+
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--

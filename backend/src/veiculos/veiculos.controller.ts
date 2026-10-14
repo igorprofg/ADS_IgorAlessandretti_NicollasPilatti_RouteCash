@@ -29,6 +29,7 @@ export class VeiculosController {
   listar(@UsuarioAtual() usuarioId: string) {
     return this.veiculosService.findAll(usuarioId);
   }
+  
 
   @Get(':id')
   buscarUm(@UsuarioAtual() usuarioId: string, @Param('id') id: string) {
