@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -29,32 +30,53 @@ export class VeiculosController {
   listar(@UsuarioAtual() usuarioId: string) {
     return this.veiculosService.findAll(usuarioId);
   }
-  
 
+  // ATENÇÃO: rotas fixas (como "inativos") precisam vir ANTES de ':id',
+  // senão o Nest leria "inativos" como se fosse um id
+  @Get('inativos')
+  listarInativos(@UsuarioAtual() usuarioId: string) {
+    return this.veiculosService.findInativos(usuarioId);
+  }
+
+  // ParseUUIDPipe: id fora do formato UUID retorna 400 (e não erro 500 do Prisma)
   @Get(':id')
-  buscarUm(@UsuarioAtual() usuarioId: string, @Param('id') id: string) {
+  buscarUm(
+    @UsuarioAtual() usuarioId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.veiculosService.findOne(usuarioId, id);
   }
 
   @Patch(':id')
   atualizar(
     @UsuarioAtual() usuarioId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AtualizarVeiculoDto,
   ) {
     return this.veiculosService.update(usuarioId, id, dto);
   }
 
   @Delete(':id')
-  remover(@UsuarioAtual() usuarioId: string, @Param('id') id: string) {
+  remover(
+    @UsuarioAtual() usuarioId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.veiculosService.remove(usuarioId, id);
   }
 
   @Patch(':id/principal')
   definirPrincipal(
     @UsuarioAtual() usuarioId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.veiculosService.definirPrincipal(usuarioId, id);
+  }
+
+  @Patch(':id/reativar')
+  reativar(
+    @UsuarioAtual() usuarioId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.veiculosService.reativar(usuarioId, id);
   }
 }
