@@ -351,6 +351,170 @@ fix(mobile): ajusta validação do campo email
 - Todas as operações protegidas continuam utilizando o JWT armazenado no `FlutterSecureStorage` e enviado automaticamente pelo Dio.
 - O aplicativo foi testado durante o desenvolvimento em celular Android físico conectado via USB.
 
+### 16/10/2026 — Nicollas Pilatti Avanços no mobile até RF06 e nova interface
+
+**O que foi feito:**
+- Retomado o desenvolvimento mobile do Route Cash a partir da RF05.
+- Finalizada a **RF05 – Registrar Ganhos**.
+- Implementadas as funcionalidades de:
+  - cadastrar ganho;
+  - listar ganhos;
+  - editar ganho;
+  - excluir ganho;
+  - duplicar ganho.
+- Implementada duplicação de ganho permitindo manter a data original ou selecionar uma nova data.
+- Integrado o cadastro de ganhos com veículos ativos e plataformas ativas.
+- Validado o funcionamento da RF05 no celular físico.
+
+- Implementada a **RF06 – Registrar Despesas**.
+- Implementadas as funcionalidades de:
+  - cadastrar despesa;
+  - listar despesas;
+  - editar despesa;
+  - excluir despesa.
+- Integrado o cadastro de despesas com veículos cadastrados.
+- Implementado carregamento das categorias padrão de despesas.
+- Implementada criação de categorias personalizadas diretamente pelo aplicativo.
+- Validado o funcionamento completo da RF06.
+
+- Corrigido problema de ambiente relacionado ao Docker Desktop.
+- Identificado erro de conexão do Prisma com o PostgreSQL na porta `5454`.
+- Identificado que o Docker Desktop não iniciava devido ao WSL desatualizado.
+- Atualizado o WSL e reiniciado o ambiente Docker.
+- PostgreSQL voltou a funcionar normalmente e o backend recuperou a conexão com o banco.
+
+- Analisada a implementação da **RF07 – Gerenciar Jornada**.
+- Identificado erro na lógica responsável por impedir múltiplas jornadas abertas.
+- Identificado erro na interpolação da mensagem de validação de horário futuro.
+- Identificada ausência da quilometragem na implementação atual da jornada.
+- A implementação mobile da RF07 foi adiada até a finalização da funcionalidade no backend.
+
+- Iniciada a reformulação visual do aplicativo mobile.
+- Criado um tema global utilizando Material 3.
+- Definida uma nova identidade visual utilizando verde como cor principal.
+- Melhorado o contraste dos textos e elementos secundários.
+- Criada diferenciação visual entre ganhos e despesas.
+- Adicionado suporte a tema claro e escuro.
+- Configurado o aplicativo para acompanhar automaticamente o tema definido no Android.
+
+- Reformulada a tela inicial do Route Cash.
+- A Home passou de uma tela de navegação simples para um **dashboard financeiro**.
+- Implementado cabeçalho compacto com nome do usuário e data atual.
+- Implementado painel financeiro utilizando dados reais cadastrados no sistema.
+- O painel apresenta:
+  - lucro líquido;
+  - total de ganhos;
+  - total de despesas.
+- Implementados atalhos rápidos para registrar ganho e registrar despesa.
+- Perfil, veículos, plataformas e logout foram reorganizados em um menu secundário.
+
+- Implementado filtro de período no painel financeiro.
+- Adicionadas as opções:
+  - Dia;
+  - Semana;
+  - Mês;
+  - Ano.
+- Mantido apenas um painel, alterando os dados apresentados conforme o filtro selecionado.
+- Implementada navegação entre períodos anteriores e posteriores.
+- Implementado seletor de data através de calendário.
+- Implementado botão para retornar rapidamente ao período atual.
+- Ganhos, despesas e lucro líquido passaram a ser recalculados de acordo com o período selecionado.
+
+- Refinada a seção **Atividades do período**.
+- As atividades passaram a respeitar o mesmo período selecionado no painel financeiro.
+- Implementados filtros:
+  - Todos;
+  - Ganhos;
+  - Despesas.
+- Adicionada contagem dos lançamentos em cada filtro.
+- Limitada inicialmente a exibição a cinco lançamentos.
+- Implementada opção `Mostrar todas` quando houver mais registros.
+- Ajustado tratamento das datas para evitar alteração do dia causada pelo fuso horário.
+- Ajustada a organização da lista para exibir ganhos e despesas de forma mais equilibrada quando possuem a mesma data.
+
+**Arquivos criados:**
+- `lib/features/earnings/data/earning.dart`
+- `lib/features/earnings/data/create_earning_request.dart`
+- `lib/features/earnings/data/update_earning_request.dart`
+- `lib/features/earnings/data/earning_repository.dart`
+- `lib/features/earnings/providers/earning_providers.dart`
+- `lib/features/earnings/presentation/earning_list_page.dart`
+- `lib/features/earnings/presentation/earning_form_page.dart`
+
+- `lib/features/expenses/data/expense.dart`
+- `lib/features/expenses/data/expense_category.dart`
+- `lib/features/expenses/data/create_expense_request.dart`
+- `lib/features/expenses/data/update_expense_request.dart`
+- `lib/features/expenses/data/expense_repository.dart`
+- `lib/features/expenses/data/expense_category_repository.dart`
+- `lib/features/expenses/providers/expense_providers.dart`
+- `lib/features/expenses/presentation/expense_list_page.dart`
+- `lib/features/expenses/presentation/expense_form_page.dart`
+
+- `lib/core/theme/app_theme.dart`
+
+**Arquivos modificados:**
+- `lib/main.dart`
+  - Aplicação do novo tema global.
+  - Suporte a tema claro e escuro.
+  - Configuração do `ThemeMode.system`.
+
+- `lib/features/home/presentation/home_page.dart`
+  - Reformulação completa da tela inicial.
+  - Dashboard financeiro.
+  - Filtros Dia, Semana, Mês e Ano.
+  - Seletor de período.
+  - Cálculo de ganhos, despesas e lucro.
+  - Atalhos rápidos.
+  - Atividades do período.
+  - Filtros de atividades.
+  - Menu de perfil, veículos, plataformas e logout.
+
+- `lib/features/earnings/data/earning_repository.dart`
+  - Adicionada integração para duplicação de ganhos.
+
+- `lib/features/earnings/presentation/earning_list_page.dart`
+  - Adicionada opção de duplicar ganho.
+  - Adicionado seletor para manter ou alterar a data da duplicação.
+
+**Próximos passos:**
+- Continuar a padronização visual das demais telas do aplicativo.
+- Aplicar o novo padrão visual às telas de:
+  - ganhos;
+  - despesas;
+  - veículos;
+  - plataformas;
+  - perfil;
+  - login;
+  - cadastro.
+- Avaliar posteriormente a criação de uma barra de navegação inferior.
+- Retomar a RF07 após a finalização da implementação de jornadas no backend.
+- Integrar quilometragem e duração da jornada.
+- Adicionar posteriormente os indicadores:
+  - ganho por hora;
+  - ganho por quilômetro;
+  - custo por quilômetro;
+  - quilômetros rodados;
+  - tempo conectado.
+- Evoluir posteriormente o dashboard com gráficos e metas.
+
+**Dificuldades:**
+- O Prisma perdeu temporariamente a conexão com o PostgreSQL devido ao Docker Desktop não iniciar.
+- Foi necessário atualizar o WSL para recuperar o funcionamento do Docker.
+- Foram identificados erros na implementação inicial do backend de jornadas, impedindo o avanço da RF07.
+- A primeira implementação das atividades do dashboard apresentava principalmente ganhos quando vários lançamentos possuíam a mesma data.
+- Foi necessário ajustar a lógica de filtragem e organização dos lançamentos.
+- Foi identificado risco de alteração do dia por causa da conversão de fuso horário, sendo necessário ajustar o tratamento das datas.
+
+**Observações:**
+- RF05 concluída e funcional.
+- RF06 concluída e funcional.
+- RF07 permanece pendente até a finalização do backend.
+- Ganhos e despesas já alimentam diretamente o dashboard da tela inicial.
+- Os filtros de Dia, Semana, Mês e Ano utilizam os dados reais cadastrados.
+- A tela inicial já está preparada para receber futuramente indicadores de jornada, desempenho e metas.
+- O aplicativo continua sendo testado em celular Android físico integrado ao backend NestJS e PostgreSQL.
+
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--

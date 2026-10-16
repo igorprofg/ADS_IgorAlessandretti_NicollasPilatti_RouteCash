@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_gate.dart';
 
 void main() {
@@ -12,10 +13,17 @@ class RouteCashApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       title: 'Route Cash',
       debugShowCheckedModeBanner: false,
-      home: AuthGate(),
+
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+
+      // Segue automaticamente o tema do Android.
+      themeMode: ThemeMode.system,
+
+      home: const AuthGate(),
     );
   }
 }
