@@ -516,6 +516,31 @@ fix(mobile): ajusta validação do campo email
 - O aplicativo continua sendo testado em celular Android físico integrado ao backend NestJS e PostgreSQL.
 
 
+
+### 17/10/2026 — Igor
+
+**O que foi feito:**
+- RF07 – Gerenciar Jornada implementado (HU22-HU24): iniciar jornada vinculada a um veículo ativo do usuário, com bloqueio de mais de uma jornada em aberto (409); finalizar jornada com cálculo automático da duração (`duracao_minutos`, calculada a partir de início e fim, sem ser gravada no banco); editar horários validando o período (fim posterior ao início e sem horários no futuro). Criada também a rota `GET /jornadas/em-andamento`, útil para o mobile.
+- RF08 – Registrar Quilometragem implementado (HU25-HU27): no modelo lógico, a quilometragem é o campo `km_rodados` da jornada, então o registro já nasce vinculado a um veículo e a uma data. Registrar, editar e remover (remover zera o km e preserva a jornada), com validação de km maior que zero e bloqueio de registro duplicado na mesma jornada (409).
+- RF09 – Calcular Indicadores Financeiros implementado (HU28-HU30): `GET /indicadores` retorna faturamento, despesas, lucro líquido, horas trabalhadas, km rodados, ganho por hora, ganho por km e custo por km, com filtro por período (padrão: dia atual). Sem horas ou km no período, os indicadores correspondentes retornam `null`, evitando divisão por zero. Como o cálculo é feito sob demanda, sem cache, qualquer edição ou exclusão aparece no cálculo seguinte (recálculo automático da HU29).
+- Melhorias no módulo de veículos a partir de um problema encontrado no mobile: `GET /veiculos/inativos`, `PATCH /veiculos/:id/reativar`, aviso específico quando a placa cadastrada pertence a um veículo removido do próprio usuário (409 com `id_veiculo_inativo`), bloqueio de edição e de definição como principal em veículo inativo.
+- Todos os cenários testados no Postman: fluxo completo de jornada, quilometragem, indicadores com e sem lançamentos e validações de período (400).
+
+**Próximos passos:**
+- Semana 5: RF10 – Visualizar Indicadores Financeiros (séries diárias e médias para os gráficos) e RF11 – Sincronizar Dados.
+- Iniciar o front-end React: login e dashboard com gráficos (Recharts).
+
+**Dificuldades:**
+- O mobile identificou que um veículo removido não podia ser recadastrado (placa única) nem reativado. A tentativa de acessar `/veiculos/inativos` retornava erro 500, porque a rota inexistente caía em `/veiculos/:id` e o Prisma tentava converter "inativos" em UUID. Resolvido criando as rotas de inativos e reativar, declaradas antes de `:id`.
+- Divergência entre o código entregue e a leitura feita pela IA do mobile sobre o `iniciar()` da jornada. O código original estava correto; ficou combinado validar pelo Postman e passar código entre chats em bloco de código ou arquivo, pois a crase de template string se perde no texto.
+
+**Observações:**
+- Rotas fixas (como `inativos` e `em-andamento`) precisam ser declaradas antes de `:id` nos controllers.
+- Ganho por hora = lucro líquido ÷ horas (somente jornadas finalizadas). Ganho por km e custo por km usam o km das jornadas do período. O período usa a data local do servidor.
+- Pendências opcionais: limitar o tamanho dos textos nos DTOs antigos com `@MaxLength` e criar índice único parcial para impedir duas jornadas abertas por disputa entre requisições.
+
+
+
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--
 ### DD/MM/AAAA — Nome
