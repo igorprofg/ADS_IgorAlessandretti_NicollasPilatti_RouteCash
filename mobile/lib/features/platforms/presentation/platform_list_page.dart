@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/platform_icon.dart';
 import '../data/platform.dart';
 import '../providers/platform_providers.dart';
 import 'platform_form_page.dart';
@@ -111,13 +112,11 @@ class _PlatformListPageState extends ConsumerState<PlatformListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Minhas Plataformas')),
-
       floatingActionButton: FloatingActionButton(
         onPressed: _novaPlataforma,
         tooltip: 'Nova plataforma',
         child: const Icon(Icons.add),
       ),
-
       body: _carregando
           ? const Center(child: CircularProgressIndicator())
           : _erro != null
@@ -134,16 +133,18 @@ class _PlatformListPageState extends ConsumerState<PlatformListPage> {
 
                   return Card(
                     child: ListTile(
-                      leading: Icon(
-                        platform.ativa
-                            ? Icons.check_circle
-                            : Icons.pause_circle_outline,
+                      leading: Opacity(
+                        opacity: platform.ativa ? 1 : 0.45,
+                        child: PlatformIcon(
+                          platformName: platform.nome,
+                          size: 46,
+                        ),
                       ),
                       title: Text(platform.nome),
                       subtitle: Text(
-                        platform.padrao
-                            ? 'Plataforma padrão'
-                            : 'Plataforma personalizada',
+                        '${platform.padrao ? 'Plataforma padrão' : 'Plataforma personalizada'}'
+                        ' • '
+                        '${platform.ativa ? 'Ativa' : 'Inativa'}',
                       ),
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) {
@@ -161,7 +162,6 @@ class _PlatformListPageState extends ConsumerState<PlatformListPage> {
                               value: 'editar',
                               child: Text('Editar'),
                             ),
-
                           PopupMenuItem(
                             value: 'alternar',
                             child: Text(platform.ativa ? 'Inativar' : 'Ativar'),

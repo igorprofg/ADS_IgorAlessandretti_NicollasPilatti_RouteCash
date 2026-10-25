@@ -539,6 +539,169 @@ fix(mobile): ajusta validação do campo email
 - Ganho por hora = lucro líquido ÷ horas (somente jornadas finalizadas). Ganho por km e custo por km usam o km das jornadas do período. O período usa a data local do servidor.
 - Pendências opcionais: limitar o tamanho dos textos nos DTOs antigos com `@MaxLength` e criar índice único parcial para impedir duas jornadas abertas por disputa entre requisições.
 
+### 17/10/2026 — Nicollas Pilatti-Mudanças visuais e ajustes nos veiculos
+
+**O que foi feito:**
+- Retomada a pendência da **RF03 – Manter Veículos**, principalmente relacionada a veículos inativos e reutilização de placas.
+- Revisado o backend atualizado de veículos.
+- Confirmado o funcionamento das rotas:
+  - `GET /veiculos/inativos`;
+  - `PATCH /veiculos/:id/reativar`.
+- Corrigido no backend o problema anterior em que a rota `inativos` poderia ser interpretada como um UUID.
+- Mantido o uso de `ParseUUIDPipe` nas rotas que recebem identificador de veículo.
+- Mantida a remoção lógica do veículo através do campo `ativo`, preservando ganhos, despesas e jornadas históricas.
+- Implementada lógica para identificar tentativa de cadastrar uma placa pertencente a um veículo inativo.
+- Backend passou a retornar o `id_veiculo_inativo` quando a placa já pertence a um veículo removido do próprio usuário.
+- Preparado no mobile o fluxo para oferecer a opção de **reativar o veículo existente**, evitando registros duplicados.
+- Ajustada a tela de veículos inativos para permitir reativação.
+- Ajustado o fluxo de cadastro para tratar conflitos de placa.
+- Adicionada normalização da placa no mobile:
+  - conversão para letras maiúsculas;
+  - remoção de caracteres desnecessários;
+  - validação do formato da placa brasileira.
+
+**Melhorias visuais nas plataformas:**
+- Iniciada melhoria visual da identificação das plataformas utilizadas nos ganhos.
+- Criada estrutura de assets específica para logos de aplicativos.
+- Adicionados arquivos de imagem para:
+  - Uber;
+  - 99;
+  - inDrive.
+- Criado componente reutilizável `PlatformIcon`.
+- O componente identifica automaticamente o nome da plataforma e carrega o logo correspondente.
+- Implementado fallback com ícone genérico para plataformas personalizadas, como `Particular`.
+- Aplicado o novo componente visual nas telas de:
+  - cadastro e edição de ganhos;
+  - listagem de ganhos;
+  - listagem de plataformas;
+  - atividades recentes da Home.
+- Na Home, ganhos passaram a poder utilizar o logo da plataforma no lugar da seta genérica.
+- Na listagem de ganhos, o logo passou a identificar visualmente a plataforma do lançamento.
+- Na tela de plataformas, os logos passaram a aparecer juntamente com o nome e status da plataforma.
+
+**Correções realizadas:**
+- Identificado que os logos inicialmente apareciam como quadrados com `X`, indicando falha no carregamento dos assets.
+- Verificada a estrutura correta dos arquivos:
+  - `mobile/assets/platforms/uber.png`;
+  - `mobile/assets/platforms/99.png`;
+  - `mobile/assets/platforms/indrive.png`.
+- Identificado erro de indentação no `pubspec.yaml`.
+- O bloco `assets:` estava fora do bloco `flutter:`, fazendo com que o Flutter não registrasse as imagens.
+- Corrigida a configuração para:
+yaml
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/platforms/
+
+### 20/10/2026 — Nicollas Pilatti- RF07 até RF10 mobile 
+**O que foi feito:**
+- Revisado o backend de **Jornadas** desenvolvido pelo colega, validando as rotas para iniciar, listar, consultar, finalizar e editar jornadas.
+- Confirmado o controle de apenas uma jornada em andamento por usuário.
+- Validado o cálculo de duração da jornada realizado pelo backend.
+- Revisado o backend de **Quilometragem**, confirmando que o valor de `km_rodados` pertence à própria `JORNADA`, sem criação de uma entidade separada.
+- Validado o fluxo de registrar, editar e remover quilometragem de uma jornada.
+- Revisado o backend de **Indicadores Financeiros**, incluindo faturamento, despesas, lucro líquido, horas trabalhadas, quilômetros rodados, ganho por hora, ganho por km e custo por km.
+- Criada a estrutura da funcionalidade de **Jornadas no aplicativo mobile**.
+- Implementado o model de Jornada e objetos utilizados nas requisições.
+- Implementado o repositório responsável pela comunicação com os endpoints de Jornada e Quilometragem.
+- Implementada a tela principal de Jornadas.
+- Implementada seleção do veículo para início da jornada.
+- Implementado início de jornada utilizando o backend.
+- Implementado cronômetro local em tempo real para jornadas em andamento, sem realizar requisições ao servidor a cada segundo.
+- Implementada detecção automática de uma jornada em andamento ao abrir a tela.
+- Implementada finalização da jornada.
+- Adicionado campo opcional para informar os quilômetros rodados ao finalizar a jornada.
+- Tratado o caso em que a jornada é finalizada com sucesso, mas ocorre erro ao registrar a quilometragem.
+- Implementado histórico de jornadas com veículo, data, horários, duração e quilometragem.
+- Criada tela para **edição de jornadas finalizadas**.
+- Implementada alteração de data e horário inicial e final.
+- Implementado recálculo da duração após alteração dos horários.
+- Implementado cadastro posterior de quilometragem em jornadas que ainda não possuem KM.
+- Implementada edição de quilometragem existente.
+- Implementada remoção da quilometragem sem excluir a jornada.
+- Adicionada opção **Editar jornada** diretamente no histórico.
+- Jornada foi integrada à **Home** de forma explícita, através de um card próprio.
+- Corrigido problema em que o arquivo atualizado da Home não havia sido substituído no diretório correto do projeto.
+- Card de Jornada da Home passou a ser **dinâmico**.
+- Quando não existe jornada ativa, a Home informa que não há jornada em andamento.
+- Quando existe jornada ativa, a Home apresenta veículo, horário de início e cronômetro.
+- Criada a estrutura mobile para **Indicadores Financeiros**.
+- Implementados model, repository e provider dos indicadores.
+- Integrado `GET /indicadores` à Home.
+- Os filtros **Dia, Semana, Mês e Ano** passaram a controlar também o período enviado ao backend para cálculo dos indicadores.
+- Adicionado card de indicadores na Home com:
+  - tempo trabalhado;
+  - quilômetros rodados;
+  - ganho por hora;
+  - ganho por km;
+  - custo por km.
+- O resumo financeiro da Home passou a utilizar os valores calculados pelo backend como fonte principal.
+- Testados os indicadores por diferentes períodos.
+- Confirmado que semanas anteriores com ganhos, mas sem jornadas registradas, não possuem horas/KM suficientes para calcular os indicadores.
+- Confirmado que a semana atual apresenta corretamente as horas das jornadas cadastradas.
+- Jornada, Quilometragem e Indicadores foram testados no dispositivo físico e estão funcionando.
+
+**Pastas criadas:**
+```text
+mobile/lib/features/journeys/
+mobile/lib/features/journeys/data/
+mobile/lib/features/journeys/providers/
+mobile/lib/features/journeys/presentation/
+
+mobile/lib/features/indicators/
+mobile/lib/features/indicators/data/
+mobile/lib/features/indicators/providers/
+```
+
+**Arquivos criados:**
+```text
+mobile/lib/features/journeys/data/journey.dart
+mobile/lib/features/journeys/data/start_journey_request.dart
+mobile/lib/features/journeys/data/update_journey_request.dart
+mobile/lib/features/journeys/data/journey_repository.dart
+mobile/lib/features/journeys/providers/journey_providers.dart
+mobile/lib/features/journeys/presentation/journey_page.dart
+mobile/lib/features/journeys/presentation/finish_journey_page.dart
+mobile/lib/features/journeys/presentation/journey_edit_page.dart
+
+mobile/lib/features/indicators/data/financial_indicators.dart
+mobile/lib/features/indicators/data/indicators_repository.dart
+mobile/lib/features/indicators/providers/indicator_providers.dart
+```
+
+**Arquivos modificados:**
+```text
+mobile/lib/features/home/presentation/home_page.dart
+```
+
+**Próximos passos:**
+- Melhorar a apresentação dos indicadores quando não houver horas ou quilômetros suficientes, exibindo mensagens como **“Sem horas registradas”** e **“Sem KM registrados”** em vez de valores zerados.
+- Realizar uma revisão final de Jornada, Quilometragem e Indicadores antes do commit.
+- Corrigir avisos restantes do `flutter analyze`.
+- Continuar para os próximos requisitos do Route Cash.
+- Implementar posteriormente o campo opcional de **observação** nos registros de ganhos e despesas.
+
+**Dificuldades:**
+- O card de Jornada inicialmente não apareceu na Home porque o arquivo `home_page.dart` atualizado não havia sido substituído no local correto do projeto.
+- Foi necessário verificar pelo PowerShell se o código do card realmente estava presente no arquivo utilizado pelo Flutter.
+- Os indicadores de períodos antigos inicialmente pareceram incorretos, porém foi identificado que existiam ganhos e despesas nesses períodos, mas não jornadas com horas e quilometragem registradas.
+- Permaneceram alguns avisos antigos do `flutter analyze`, sem impedir a compilação ou execução do aplicativo.
+
+**Observações:**
+- A implementação do backend de Jornada, Quilometragem e Indicadores foi realizada pelo colega e nesta etapa foi revisada e integrada ao aplicativo mobile.
+- A duração da jornada não é armazenada separadamente; é calculada pelo backend utilizando os horários de início e fim.
+- A quilometragem continua pertencendo à entidade `JORNADA`, através do campo `km_rodados`.
+- O cronômetro exibido no aplicativo é atualizado localmente e não gera requisições contínuas ao backend.
+- Os cálculos de ganho por hora e ganho por km utilizam o **lucro líquido** do período.
+- Caso não existam horas ou quilômetros no período selecionado, o backend não realiza divisão por zero e retorna o indicador como `null`.
+- O fluxo **iniciar jornada → acompanhar → finalizar → registrar KM → editar jornada/KM → visualizar indicadores** está funcional no mobile.
+
+    
+
+
+
 
 
 <!-- Próxima entrada: copiar o modelo abaixo -->

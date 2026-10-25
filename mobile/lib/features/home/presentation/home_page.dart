@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/storage/secure_storage.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/platform_icon.dart';
 
 import '../../auth/presentation/login_page.dart';
 
@@ -16,12 +18,19 @@ import '../../expenses/presentation/expense_form_page.dart';
 import '../../expenses/presentation/expense_list_page.dart';
 import '../../expenses/providers/expense_providers.dart';
 
+import '../../indicators/data/financial_indicators.dart';
+import '../../indicators/providers/indicator_providers.dart';
+
 import '../../platforms/presentation/platform_list_page.dart';
 
 import '../../users/presentation/profile_page.dart';
 import '../../users/providers/user_providers.dart';
 
 import '../../vehicles/presentation/vehicle_list_page.dart';
+
+import '../../journeys/data/journey.dart';
+import '../../journeys/presentation/journey_page.dart';
+import '../../journeys/providers/journey_providers.dart';
 
 enum _PeriodType { day, week, month, year }
 
@@ -39,6 +48,14 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   List<Earning> _earnings = [];
   List<Expense> _expenses = [];
+
+  Journey? _jornadaEmAndamento;
+  Timer? _jornadaTimer;
+
+  FinancialIndicators? _indicadores;
+  bool _carregandoIndicadores = false;
+  String? _erroIndicadores;
+  int _indicadoresRequestId = 0;
 
   bool _carregando = true;
   String? _erro;
@@ -58,6 +75,12 @@ class _HomePageState extends ConsumerState<HomePage> {
     Future.microtask(_carregarDashboard);
   }
 
+  @override
+  void dispose() {
+    _jornadaTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _carregarDashboard() async {
     if (mounted) {
       setState(() {
@@ -73,10 +96,13 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       final expenseRepository = ref.read(expenseRepositoryProvider);
 
+      final journeyRepository = ref.read(journeyRepositoryProvider);
+
       final resultados = await Future.wait<Object?>([
         userRepository.getMyProfile(),
         earningRepository.findAll(),
         expenseRepository.findAll(),
+        journeyRepository.findInProgress(),
       ]);
 
       final usuario = resultados[0] as Map<String, dynamic>;
@@ -85,16 +111,22 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       final expenses = resultados[2] as List<Expense>;
 
+      final jornadaEmAndamento = resultados[3] as Journey?;
+
       if (!mounted) return;
 
       setState(() {
         _usuario = usuario;
         _earnings = earnings;
         _expenses = expenses;
+        _jornadaEmAndamento = jornadaEmAndamento;
 
         _carregando = false;
         _erro = null;
       });
+
+      _configurarTimerJornada();
+      await _carregarIndicadores();
     } catch (e) {
       if (!mounted) return;
 
@@ -102,6 +134,112 @@ class _HomePageState extends ConsumerState<HomePage> {
         _erro = e.toString().replaceFirst('Exception: ', '');
 
         _carregando = false;
+      });
+    }
+  }
+
+  void _configurarTimerJornada() {
+    _jornadaTimer?.cancel();
+
+    if (_jornadaEmAndamento == null) {
+      return;
+    }
+
+    _jornadaTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  Duration get _duracaoJornadaAtual {
+    final jornada = _jornadaEmAndamento;
+
+    if (jornada == null) {
+      return Duration.zero;
+    }
+
+    final duracao = DateTime.now().difference(jornada.inicio);
+
+    return duracao.isNegative ? Duration.zero : duracao;
+  }
+
+  String _formatarDuracaoJornada(Duration duracao) {
+    final horas = duracao.inHours.toString().padLeft(2, '0');
+    final minutos = duracao.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final segundos = duracao.inSeconds.remainder(60).toString().padLeft(2, '0');
+
+    return '$horas:$minutos:$segundos';
+  }
+
+  String _formatarHorarioJornada(DateTime data) {
+    final local = data.toLocal();
+    final hora = local.hour.toString().padLeft(2, '0');
+    final minuto = local.minute.toString().padLeft(2, '0');
+
+    return '$hora:$minuto';
+  }
+
+  ({DateTime inicio, DateTime fim}) _periodoAtual() {
+    final referencia = _somenteData(_dataReferencia);
+
+    switch (_periodoSelecionado) {
+      case _PeriodType.day:
+        return (inicio: referencia, fim: referencia);
+
+      case _PeriodType.week:
+        final inicio = referencia.subtract(
+          Duration(days: referencia.weekday - 1),
+        );
+        final fim = inicio.add(const Duration(days: 6));
+        return (inicio: inicio, fim: fim);
+
+      case _PeriodType.month:
+        final inicio = DateTime(referencia.year, referencia.month, 1);
+        final fim = DateTime(referencia.year, referencia.month + 1, 0);
+        return (inicio: inicio, fim: fim);
+
+      case _PeriodType.year:
+        return (
+          inicio: DateTime(referencia.year, 1, 1),
+          fim: DateTime(referencia.year, 12, 31),
+        );
+    }
+  }
+
+  Future<void> _carregarIndicadores() async {
+    final requestId = ++_indicadoresRequestId;
+
+    if (mounted) {
+      setState(() {
+        _carregandoIndicadores = true;
+        _erroIndicadores = null;
+        _indicadores = null;
+      });
+    }
+
+    try {
+      final repository = ref.read(indicatorsRepositoryProvider);
+      final periodo = _periodoAtual();
+
+      final indicadores = await repository.calculate(
+        inicio: periodo.inicio,
+        fim: periodo.fim,
+      );
+
+      if (!mounted || requestId != _indicadoresRequestId) return;
+
+      setState(() {
+        _indicadores = indicadores;
+        _carregandoIndicadores = false;
+        _erroIndicadores = null;
+      });
+    } catch (e) {
+      if (!mounted || requestId != _indicadoresRequestId) return;
+
+      setState(() {
+        _carregandoIndicadores = false;
+        _erroIndicadores = e.toString().replaceFirst('Exception: ', '');
       });
     }
   }
@@ -156,15 +294,17 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   double get _totalGanhos {
-    return _ganhosPeriodo.fold(0, (total, earning) => total + earning.valor);
+    return _indicadores?.faturamento ??
+        _ganhosPeriodo.fold(0, (total, earning) => total + earning.valor);
   }
 
   double get _totalDespesas {
-    return _despesasPeriodo.fold(0, (total, expense) => total + expense.valor);
+    return _indicadores?.despesas ??
+        _despesasPeriodo.fold(0, (total, expense) => total + expense.valor);
   }
 
   double get _lucro {
-    return _totalGanhos - _totalDespesas;
+    return _indicadores?.lucroLiquido ?? (_totalGanhos - _totalDespesas);
   }
 
   String get _primeiroNome {
@@ -186,13 +326,14 @@ class _HomePageState extends ConsumerState<HomePage> {
       ganhos.add(
         _ActivityItem(
           data: earning.data,
-          titulo: earning.plataformaNome ?? 'Ganho',
+          titulo: 'Ganho',
           subtitulo:
               '${earning.veiculoMarca ?? ''} '
                       '${earning.veiculoModelo ?? ''}'
                   .trim(),
           valor: earning.valor,
           entrada: true,
+          plataformaNome: earning.plataformaNome,
         ),
       );
     }
@@ -208,6 +349,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   .trim(),
           valor: expense.valor,
           entrada: false,
+          plataformaNome: null,
         ),
       );
     }
@@ -304,7 +446,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       confirmText: 'Selecionar',
     );
 
-    if (selecionada == null) {
+    if (selecionada == null || !mounted) {
       return;
     }
 
@@ -313,6 +455,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       _mostrarTodasAtividades = false;
     });
+
+    await _carregarIndicadores();
   }
 
   void _alterarPeriodo(_PeriodType periodo) {
@@ -323,6 +467,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       _mostrarTodasAtividades = false;
     });
+
+    unawaited(_carregarIndicadores());
   }
 
   void _periodoAnterior() {
@@ -351,6 +497,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       _mostrarTodasAtividades = false;
     });
+
+    unawaited(_carregarIndicadores());
   }
 
   void _proximoPeriodo() {
@@ -385,6 +533,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       _mostrarTodasAtividades = false;
     });
+
+    unawaited(_carregarIndicadores());
   }
 
   void _voltarParaHoje() {
@@ -393,6 +543,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       _mostrarTodasAtividades = false;
     });
+
+    unawaited(_carregarIndicadores());
   }
 
   String _nomeMes(int mes) {
@@ -539,6 +691,15 @@ class _HomePageState extends ConsumerState<HomePage> {
     await _carregarDashboard();
   }
 
+  Future<void> _abrirJornadas() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const JourneyPage()),
+    );
+
+    await _carregarDashboard();
+  }
+
   Future<void> _registrarGanho() async {
     final atualizado = await Navigator.push<bool>(
       context,
@@ -593,6 +754,10 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       case 'despesas':
         _abrirDespesas();
+        break;
+
+      case 'jornadas':
+        _abrirJornadas();
         break;
 
       case 'sair':
@@ -735,6 +900,17 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ],
                 ),
               ),
+
+              const PopupMenuItem(
+                value: 'jornadas',
+                child: Row(
+                  children: [
+                    Icon(Icons.timer_outlined),
+                    SizedBox(width: 12),
+                    Text('Jornadas'),
+                  ],
+                ),
+              ),
               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'veiculos',
@@ -789,6 +965,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                     const SizedBox(height: 18),
 
                     _buildAcoesRapidas(),
+
+                    const SizedBox(height: 16),
+
+                    _buildJourneyCard(),
+
+                    const SizedBox(height: 22),
+
+                    _buildIndicatorsCard(),
 
                     const SizedBox(height: 28),
 
@@ -1070,6 +1254,536 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  Widget _buildJourneyCard() {
+    final theme = Theme.of(context);
+    final jornada = _jornadaEmAndamento;
+
+    if (jornada == null) {
+      return Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _abrirJornadas,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    color: theme.colorScheme.primary,
+                    size: 31,
+                  ),
+                ),
+
+                const SizedBox(width: 15),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Jornada de trabalho',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Nenhuma jornada em andamento',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Iniciar',
+                    style: TextStyle(
+                      color: theme.colorScheme.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final duracao = _formatarDuracaoJornada(_duracaoJornadaAtual);
+    final placa = jornada.veiculoPlaca?.trim();
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _abrirJornadas,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  const Expanded(
+                    child: Text(
+                      'Jornada em andamento',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Icon(
+                      Icons.directions_car_outlined,
+                      color: theme.colorScheme.primary,
+                      size: 27,
+                    ),
+                  ),
+
+                  const SizedBox(width: 13),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          jornada.veiculoNome,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          [
+                            if (placa != null && placa.isNotEmpty) placa,
+                            'desde ${_formatarHorarioJornada(jornada.inicio)}',
+                          ].join(' • '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Text(
+                    duracao,
+                    style: TextStyle(
+                      color: theme.colorScheme.primary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Icon(
+                    Icons.touch_app_outlined,
+                    size: 15,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Toque para acompanhar ou finalizar',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIndicatorsCard() {
+    final theme = Theme.of(context);
+    final indicadores = _indicadores;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    Icons.insights_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Indicadores do período',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _textoPeriodo,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_carregandoIndicadores)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+
+            if (_erroIndicadores != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _erroIndicadores!,
+                        style: TextStyle(
+                          color: theme.colorScheme.onErrorContainer,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _carregandoIndicadores
+                          ? null
+                          : () => unawaited(_carregarIndicadores()),
+                      tooltip: 'Tentar novamente',
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (indicadores == null) ...[
+              const SizedBox(height: 18),
+              const Center(child: CircularProgressIndicator()),
+            ] else ...[
+              const SizedBox(height: 16),
+
+              if (_deveAvisarFaltaJornada(indicadores)) ...[
+                _buildIndicatorWarning(
+                  icon: Icons.warning_amber_rounded,
+                  title: 'Faltam dados de jornada',
+                  message:
+                      'Existem lançamentos financeiros neste período, mas '
+                      'nenhuma jornada foi registrada. Registre suas horas e '
+                      'quilometragem para calcular os indicadores de desempenho.',
+                  buttonLabel: 'Ir para Jornadas',
+                ),
+                const SizedBox(height: 14),
+              ] else if (_deveAvisarFaltaKm(indicadores)) ...[
+                _buildIndicatorWarning(
+                  icon: Icons.route_outlined,
+                  title: 'Quilometragem não informada',
+                  message:
+                      'Há jornada registrada neste período, mas nenhum KM foi '
+                      'informado. Ganho/km e custo/km não podem ser calculados.',
+                  buttonLabel: 'Abrir Jornadas',
+                ),
+                const SizedBox(height: 14),
+              ],
+
+              Row(
+                children: [
+                  Expanded(
+                    child: _IndicatorTile(
+                      icon: Icons.schedule_outlined,
+                      label: 'Tempo trabalhado',
+                      value: indicadores.horasTrabalhadas > 0
+                          ? _formatarHorasIndicador(
+                              indicadores.horasTrabalhadas,
+                            )
+                          : 'Sem jornada',
+                      unavailable: indicadores.horasTrabalhadas <= 0,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _IndicatorTile(
+                      icon: Icons.route_outlined,
+                      label: 'KM rodados',
+                      value: indicadores.kmRodados > 0
+                          ? '${_formatarNumero(indicadores.kmRodados)} km'
+                          : 'Não informado',
+                      unavailable: indicadores.kmRodados <= 0,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: _IndicatorTile(
+                      icon: Icons.payments_outlined,
+                      label: 'Ganho/hora',
+                      value: indicadores.ganhoPorHora != null
+                          ? _formatarIndicadorMoeda(
+                              indicadores.ganhoPorHora,
+                              sufixo: '/h',
+                            )
+                          : 'Não calculável',
+                      unavailable: indicadores.ganhoPorHora == null,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _IndicatorTile(
+                      icon: Icons.trending_up,
+                      label: 'Ganho/km',
+                      value: indicadores.ganhoPorKm != null
+                          ? _formatarIndicadorMoeda(
+                              indicadores.ganhoPorKm,
+                              sufixo: '/km',
+                            )
+                          : 'Não calculável',
+                      unavailable: indicadores.ganhoPorKm == null,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              _IndicatorTile(
+                icon: Icons.local_gas_station_outlined,
+                label: 'Custo/km',
+                value: indicadores.custoPorKm != null
+                    ? _formatarIndicadorMoeda(
+                        indicadores.custoPorKm,
+                        sufixo: '/km',
+                      )
+                    : 'Não calculável',
+                unavailable: indicadores.custoPorKm == null,
+                fullWidth: true,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _deveAvisarFaltaJornada(FinancialIndicators indicadores) {
+    final possuiLancamentos =
+        indicadores.faturamento != 0 || indicadores.despesas != 0;
+
+    return possuiLancamentos && indicadores.horasTrabalhadas <= 0;
+  }
+
+  bool _deveAvisarFaltaKm(FinancialIndicators indicadores) {
+    return indicadores.horasTrabalhadas > 0 && indicadores.kmRodados <= 0;
+  }
+
+  Widget _buildIndicatorWarning({
+    required IconData icon,
+    required String title,
+    required String message,
+    required String buttonLabel,
+  }) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                icon,
+                size: 22,
+                color: theme.colorScheme.onTertiaryContainer,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onTertiaryContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      message,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onTertiaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _abrirJornadas,
+              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+              label: Text(buttonLabel),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.onTertiaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatarHorasIndicador(double horas) {
+    final minutosTotais = (horas * 60).round();
+    final h = minutosTotais ~/ 60;
+    final m = minutosTotais % 60;
+
+    if (h == 0) return '${m}min';
+    if (m == 0) return '${h}h';
+
+    return '${h}h ${m}min';
+  }
+
+  String _formatarNumero(double valor) {
+    return valor.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  String _formatarIndicadorMoeda(double? valor, {required String sufixo}) {
+    if (valor == null) {
+      return '—';
+    }
+
+    return '${_formatarMoeda(valor)}$sufixo';
+  }
+
   Widget _buildFiltrosAtividade() {
     return Row(
       children: [
@@ -1174,19 +1888,17 @@ class _HomePageState extends ConsumerState<HomePage> {
                   horizontal: 14,
                   vertical: 6,
                 ),
-                leading: Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: cor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Icon(
-                    item.entrada ? Icons.arrow_upward : Icons.arrow_downward,
-                    color: cor,
-                    size: 20,
-                  ),
-                ),
+                leading: item.entrada && item.plataformaNome != null
+                    ? PlatformIcon(platformName: item.plataformaNome!, size: 42)
+                    : Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: cor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(Icons.arrow_downward, color: cor, size: 20),
+                      ),
                 title: Text(
                   item.titulo,
                   maxLines: 1,
@@ -1513,12 +2225,97 @@ class _QuickActionButton extends StatelessWidget {
   }
 }
 
+class _IndicatorTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool fullWidth;
+  final bool unavailable;
+
+  const _IndicatorTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.fullWidth = false,
+    this.unavailable = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final iconColor = unavailable
+        ? theme.colorScheme.onSurfaceVariant
+        : theme.colorScheme.primary;
+
+    final iconBackground = unavailable
+        ? theme.colorScheme.surfaceContainerHigh
+        : theme.colorScheme.primaryContainer;
+
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: iconBackground,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 19, color: iconColor),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: unavailable
+                          ? theme.colorScheme.onSurfaceVariant
+                          : null,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActivityItem {
   final DateTime data;
   final String titulo;
   final String subtitulo;
   final double valor;
   final bool entrada;
+  final String? plataformaNome;
 
   const _ActivityItem({
     required this.data,
@@ -1526,5 +2323,6 @@ class _ActivityItem {
     required this.subtitulo,
     required this.valor,
     required this.entrada,
+    this.plataformaNome,
   });
 }

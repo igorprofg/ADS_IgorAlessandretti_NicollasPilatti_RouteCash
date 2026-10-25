@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../vehicles/data/vehicle.dart';
 import '../../vehicles/providers/vehicle_providers.dart';
+
 import '../data/create_expense_request.dart';
 import '../data/expense.dart';
 import '../data/expense_category.dart';
 import '../data/update_expense_request.dart';
+
 import '../providers/expense_providers.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
@@ -19,9 +21,9 @@ class ExpenseFormPage extends ConsumerStatefulWidget {
 }
 
 class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
-  final _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  final _valorController = TextEditingController();
+  final TextEditingController _valorController = TextEditingController();
 
   List<Vehicle> _vehicles = [];
   List<ExpenseCategory> _categories = [];
@@ -89,6 +91,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
             : null;
 
         _carregando = false;
+        _erro = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -102,46 +105,12 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   }
 
   Future<void> _criarCategoria() async {
-    final controller = TextEditingController();
-
     final nome = await showDialog<String>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Nova categoria'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Nome da categoria',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final nome = controller.text.trim();
-
-                if (nome.isEmpty) {
-                  return;
-                }
-
-                Navigator.pop(context, nome);
-              },
-              child: const Text('Criar'),
-            ),
-          ],
-        );
+        return const _NewCategoryDialog();
       },
     );
-
-    controller.dispose();
 
     if (nome == null || nome.trim().isEmpty) {
       return;
@@ -182,6 +151,9 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       initialDate: _data,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
+      helpText: 'Selecionar data da despesa',
+      cancelText: 'Cancelar',
+      confirmText: 'Selecionar',
     );
 
     if (selecionada == null) {
@@ -278,6 +250,38 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     }
   }
 
+  Widget _buildErro() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 52),
+            const SizedBox(height: 16),
+            Text(
+              _erro ?? 'Não foi possível carregar os dados.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () {
+                setState(() {
+                  _carregando = true;
+                  _erro = null;
+                });
+
+                _carregarDados();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -287,19 +291,32 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       body: _carregando
           ? const Center(child: CircularProgressIndicator())
           : _erro != null
-          ? Center(child: Text(_erro!))
+          ? _buildErro()
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Text(
+                      _editando
+                          ? 'Atualize os dados da despesa.'
+                          : 'Informe os dados da nova despesa.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+
+                    const SizedBox(height: 22),
+
                     DropdownButtonFormField<String>(
                       initialValue: _idVeiculo,
                       decoration: const InputDecoration(
                         labelText: 'Veículo',
-                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.directions_car_outlined),
                       ),
                       items: _vehicles.map((vehicle) {
                         return DropdownMenuItem<String>(
@@ -334,12 +351,15 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                             initialValue: _idCategoria,
                             decoration: const InputDecoration(
                               labelText: 'Categoria',
-                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.category_outlined),
                             ),
                             items: _categories.map((category) {
                               return DropdownMenuItem<String>(
                                 value: category.idCategoria,
-                                child: Text(category.nome),
+                                child: Text(
+                                  category.nome,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               );
                             }).toList(),
                             onChanged: (value) {
@@ -359,30 +379,53 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
 
                         const SizedBox(width: 8),
 
-                        IconButton.filled(
-                          onPressed: _criarCategoria,
-                          tooltip: 'Nova categoria',
-                          icon: const Icon(Icons.add),
+                        SizedBox(
+                          height: 56,
+                          child: IconButton.filled(
+                            onPressed: _criarCategoria,
+                            tooltip: 'Nova categoria',
+                            icon: const Icon(Icons.add),
+                          ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Text(
+                        'Use o botão + para criar uma categoria personalizada.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
 
                     TextFormField(
                       controller: _valorController,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
+                      textInputAction: TextInputAction.done,
                       decoration: const InputDecoration(
                         labelText: 'Valor',
+                        prefixIcon: Icon(Icons.payments_outlined),
                         prefixText: 'R\$ ',
-                        border: OutlineInputBorder(),
+                        hintText: '0,00',
                       ),
                       validator: (value) {
-                        final numero = double.tryParse(
-                          (value ?? '').replaceAll(',', '.'),
-                        );
+                        final texto = (value ?? '').trim().replaceAll(',', '.');
+
+                        final numero = double.tryParse(texto);
+
+                        if (texto.isEmpty) {
+                          return 'Informe o valor da despesa.';
+                        }
 
                         if (numero == null) {
                           return 'Informe um valor válido.';
@@ -400,36 +443,123 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
 
                     InkWell(
                       onTap: _selecionarData,
+                      borderRadius: BorderRadius.circular(14),
                       child: InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Data',
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.calendar_month),
+                          prefixIcon: Icon(Icons.calendar_month_outlined),
+                          suffixIcon: Icon(Icons.chevron_right),
                         ),
-                        child: Text(_formatarData(_data)),
+                        child: Text(
+                          _formatarData(_data),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 28),
 
-                    FilledButton(
+                    FilledButton.icon(
                       onPressed: _salvando ? null : _salvar,
-                      child: _salvando
+                      icon: _salvando
                           ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
-                          : Text(
+                          : Icon(
                               _editando
-                                  ? 'Salvar alterações'
-                                  : 'Registrar despesa',
+                                  ? Icons.save_outlined
+                                  : Icons.add_circle_outline,
                             ),
+                      label: Text(
+                        _salvando
+                            ? 'Salvando...'
+                            : _editando
+                            ? 'Salvar alterações'
+                            : 'Registrar despesa',
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+    );
+  }
+}
+
+class _NewCategoryDialog extends StatefulWidget {
+  const _NewCategoryDialog();
+
+  @override
+  State<_NewCategoryDialog> createState() => _NewCategoryDialogState();
+}
+
+class _NewCategoryDialogState extends State<_NewCategoryDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  String? _erro;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _criar() {
+    final nome = _controller.text.trim();
+
+    if (nome.isEmpty) {
+      setState(() {
+        _erro = 'Informe o nome da categoria.';
+      });
+
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    Navigator.of(context).pop(nome);
+  }
+
+  void _cancelar() {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Nova categoria'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: 'Nome da categoria',
+          hintText: 'Ex.: Lavagem',
+          errorText: _erro,
+        ),
+        onChanged: (_) {
+          if (_erro != null) {
+            setState(() {
+              _erro = null;
+            });
+          }
+        },
+        onSubmitted: (_) {
+          _criar();
+        },
+      ),
+      actions: [
+        TextButton(onPressed: _cancelar, child: const Text('Cancelar')),
+        FilledButton(onPressed: _criar, child: const Text('Criar')),
+      ],
     );
   }
 }

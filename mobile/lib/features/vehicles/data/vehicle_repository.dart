@@ -5,6 +5,19 @@ import 'create_vehicle_request.dart';
 import 'update_vehicle_request.dart';
 import 'vehicle.dart';
 
+class InactiveVehicleConflict implements Exception {
+  final String message;
+  final String vehicleId;
+
+  const InactiveVehicleConflict({
+    required this.message,
+    required this.vehicleId,
+  });
+
+  @override
+  String toString() => message;
+}
+
 class VehicleRepository {
   final Dio _dio;
 
@@ -48,6 +61,12 @@ class VehicleRepository {
 
       return Vehicle.fromJson(Map<String, dynamic>.from(response.data));
     } on DioException catch (e) {
+      final conflito = _getInactiveVehicleConflict(e);
+
+      if (conflito != null) {
+        throw conflito;
+      }
+
       throw Exception(
         _getErrorMessage(e, 'Não foi possível cadastrar o veículo.'),
       );
@@ -63,6 +82,12 @@ class VehicleRepository {
 
       return Vehicle.fromJson(Map<String, dynamic>.from(response.data));
     } on DioException catch (e) {
+      final conflito = _getInactiveVehicleConflict(e);
+
+      if (conflito != null) {
+        throw conflito;
+      }
+
       throw Exception(
         _getErrorMessage(e, 'Não foi possível atualizar o veículo.'),
       );
@@ -95,12 +120,11 @@ class VehicleRepository {
     }
   }
 
-  Future<String> reactivate(String id) async {
+  Future<Vehicle> reactivate(String id) async {
     try {
       final response = await _dio.patch('/veiculos/$id/reativar');
 
-      return response.data['mensagem']?.toString() ??
-          'Veículo reativado com sucesso.';
+      return Vehicle.fromJson(Map<String, dynamic>.from(response.data));
     } on DioException catch (e) {
       throw Exception(
         _getErrorMessage(e, 'Não foi possível reativar o veículo.'),
@@ -108,10 +132,34 @@ class VehicleRepository {
     }
   }
 
+  InactiveVehicleConflict? _getInactiveVehicleConflict(DioException e) {
+    if (e.response?.statusCode != 409) {
+      return null;
+    }
+
+    final data = e.response?.data;
+
+    if (data is! Map) {
+      return null;
+    }
+
+    final id = data['id_veiculo_inativo']?.toString();
+
+    if (id == null || id.isEmpty) {
+      return null;
+    }
+
+    final message =
+        data['message']?.toString() ??
+        'Este veículo já está cadastrado e está inativo.';
+
+    return InactiveVehicleConflict(message: message, vehicleId: id);
+  }
+
   String _getErrorMessage(DioException e, String fallback) {
     final data = e.response?.data;
 
-    if (data is Map<String, dynamic>) {
+    if (data is Map) {
       final message = data['message'];
 
       if (message is String) {

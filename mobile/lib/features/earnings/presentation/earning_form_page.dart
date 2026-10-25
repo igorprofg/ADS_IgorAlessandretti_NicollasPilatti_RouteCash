@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/platform_icon.dart';
+
 import '../../platforms/data/platform.dart';
 import '../../platforms/providers/platform_providers.dart';
 import '../../vehicles/data/vehicle.dart';
@@ -36,6 +38,15 @@ class _EarningFormPageState extends ConsumerState<EarningFormPage> {
   String? _erro;
 
   bool get _editando => widget.earning != null;
+
+  bool _possuiLogoPadrao(String nome) {
+    final normalizado = nome.trim().toLowerCase();
+
+    return normalizado == 'uber' ||
+        normalizado == '99' ||
+        normalizado == 'indrive' ||
+        normalizado == 'in drive';
+  }
 
   @override
   void initState() {
@@ -250,10 +261,46 @@ class _EarningFormPageState extends ConsumerState<EarningFormPage> {
                         labelText: 'Plataforma',
                         border: OutlineInputBorder(),
                       ),
+                      selectedItemBuilder: (context) {
+                        return _platforms.map((platform) {
+                          final possuiLogo = _possuiLogoPadrao(platform.nome);
+
+                          return Align(
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                PlatformIcon(
+                                  platformName: platform.nome,
+                                  size: 36,
+                                ),
+                                if (!possuiLogo) ...[
+                                  const SizedBox(width: 10),
+                                  Flexible(
+                                    child: Text(
+                                      platform.nome,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        }).toList();
+                      },
                       items: _platforms.map((platform) {
-                        return DropdownMenuItem(
+                        return DropdownMenuItem<String>(
                           value: platform.idPlataforma,
-                          child: Text(platform.nome),
+                          child: Row(
+                            children: [
+                              PlatformIcon(
+                                platformName: platform.nome,
+                                size: 34,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(platform.nome),
+                            ],
+                          ),
                         );
                       }).toList(),
                       onChanged: (value) {
