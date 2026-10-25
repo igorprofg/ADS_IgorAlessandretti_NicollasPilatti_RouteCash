@@ -2,6 +2,9 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsultaIndicadoresDto } from './dto/consulta-indicadores.dto';
 
+const MS_DIA = 24 * 60 * 60 * 1000;
+const LIMITE_DIAS_SERIE = 366;
+
 const arredondar = (n: number) => Math.round(n * 100) / 100;
 
 // RN37: nunca dividir por zero - sem horas/km no período o indicador vem como null
@@ -109,6 +112,98 @@ export class IndicadoresService {
       ganho_por_hora: dividir(lucroLiquido, horas), // RN35
       ganho_por_km: dividir(lucroLiquido, km), // RN36
       custo_por_km: dividir(totalDespesas, km),
+    };
+  }
+
+  // Transforma o resultado do groupBy em um mapa "AAAA-MM-DD" -> soma do dia
+  private somaPorDia(linhas: { data: Date; _sum: { valor: unknown } }[]) {
+    const mapa = new Map<string, number>();
+    for (const linha of linhas) {
+      mapa.set(linha.data.toISOString().slice(0, 10), Number(linha._sum.valor ?? 0));
+    }
+    return mapa;
+  }
+
+  // RF10 / HU31 / HU32: série diária para os gráficos (faturamento x despesas e evolução do lucro).
+  // Usa o mesmo filtro de período do cálculo (HU31) e os mesmos lançamentos, então a soma da
+  // série bate com os totais de GET /indicadores (RN da HU32).
+  async serie(usuarioId: string, filtro: ConsultaIndicadoresDto) {
+    const { inicio, fim } = this.resolverPeriodo(filtro);
+    const dataDe = this.dataUtc(inicio);
+    const dataAte = this.dataUtc(fim);
+
+    const totalDias = Math.round((dataAte.getTime() - dataDe.getTime()) / MS_DIA) + 1;
+    if (totalDias > LIMITE_DIAS_SERIE) {
+      throw new BadRequestException(
+        `O período máximo para o gráfico é de ${LIMITE_DIAS_SERIE} dias`,
+      );
+    }
+
+    const [ganhos, despesas] = await Promise.all([
+      this.prisma.ganho.groupBy({
+        by: ['data'],
+        _sum: { valor: true },
+        where: {
+          veiculo: { id_usuario: usuarioId },
+          data: { gte: dataDe, lte: dataAte },
+        },
+      }),
+      this.prisma.despesa.groupBy({
+        by: ['data'],
+        _sum: { valor: true },
+        where: {
+          veiculo: { id_usuario: usuarioId },
+          data: { gte: dataDe, lte: dataAte },
+        },
+      }),
+    ]);
+
+    const ganhosPorDia = this.somaPorDia(ganhos);
+    const despesasPorDia = this.somaPorDia(despesas);
+
+    // Todos os dias do período entram na série (dia sem lançamento = zero), para o eixo do gráfico ficar contínuo
+    const dias: {
+      data: string;
+      faturamento: number;
+      despesas: number;
+      lucro_liquido: number;
+      lucro_acumulado: number;
+    }[] = [];
+    let somaFaturamento = 0;
+    let somaDespesas = 0;
+
+    for (let i = 0; i < totalDias; i++) {
+      const dia = new Date(dataDe.getTime() + i * MS_DIA).toISOString().slice(0, 10);
+      const faturamento = ganhosPorDia.get(dia) ?? 0;
+      const despesaDia = despesasPorDia.get(dia) ?? 0;
+
+      somaFaturamento += faturamento;
+      somaDespesas += despesaDia;
+
+      dias.push({
+        data: dia,
+        faturamento: arredondar(faturamento),
+        despesas: arredondar(despesaDia),
+        lucro_liquido: arredondar(faturamento - despesaDia),
+        lucro_acumulado: arredondar(somaFaturamento - somaDespesas),
+      });
+    }
+
+    return {
+      periodo: { inicio, fim },
+      total_dias: totalDias,
+      totais: {
+        faturamento: arredondar(somaFaturamento),
+        despesas: arredondar(somaDespesas),
+        lucro_liquido: arredondar(somaFaturamento - somaDespesas),
+      },
+      // Médias por dia corrido do período (dias sem lançamento contam como zero)
+      medias_diarias: {
+        faturamento: arredondar(somaFaturamento / totalDias),
+        despesas: arredondar(somaDespesas / totalDias),
+        lucro_liquido: arredondar((somaFaturamento - somaDespesas) / totalDias),
+      },
+      dias,
     };
   }
 }

@@ -7,6 +7,11 @@ import { AtualizarDespesaDto } from './dto/atualizar-despesa.dto';
 export class DespesasService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Observação opcional: undefined = não mexe; "" ou null = limpa; texto = grava (sem espaços nas pontas)
+  private normalizarObservacao(valor?: string | null) {
+    return valor?.trim() || null;
+  }
+
   // DESPESA não tem id_usuario direto - a posse é garantida pelo veículo.
   // Veículo removido (ativo = false) não pode receber novos lançamentos.
   private async validarVeiculo(usuarioId: string, id_veiculo: string) {
@@ -44,6 +49,7 @@ export class DespesasService {
         id_categoria: dto.id_categoria,
         valor: dto.valor,
         data: new Date(dto.data),
+        observacao: this.normalizarObservacao(dto.observacao),
       },
     });
   }
@@ -85,6 +91,9 @@ export class DespesasService {
         ...(dto.id_categoria && { id_categoria: dto.id_categoria }),
         ...(dto.valor !== undefined && { valor: dto.valor }),
         ...(dto.data && { data: new Date(dto.data) }),
+        ...(dto.observacao !== undefined && {
+          observacao: this.normalizarObservacao(dto.observacao),
+        }),
       },
     });
   }

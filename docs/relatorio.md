@@ -700,7 +700,29 @@ mobile/lib/features/home/presentation/home_page.dart
 
     
 
+### 22/10/2026 — Igor
 
+**O que foi feito:**
+- RF10 – Visualizar Indicadores Financeiros (backend, HU31-HU32): rota `GET /indicadores/serie`, com a série diária (faturamento, despesas, lucro líquido e lucro acumulado), totais do período e médias diárias, para alimentar os gráficos. Usa o mesmo filtro de período do RF09, preenche com zero os dias sem lançamento e limita o período a 366 dias. A soma da série bate com os totais de `GET /indicadores`.
+- RF11 – Sincronizar Dados (backend, HU33-HU34): novo módulo `sincronizacao`. `POST /sincronizacao/enviar` recebe em lote os ganhos, despesas, jornadas e exclusões do app e devolve um resultado por item (`ok`, `ignorado` ou `erro`, com código e motivo). Um item inválido não trava o lote, o reenvio do mesmo registro é idempotente (UUID gerado no app), o conflito de edição é resolvido pela alteração mais recente e as exclusões são processadas por último. `GET /sincronizacao/baixar` devolve o retrato completo dos dados do usuário para o app se atualizar, inclusive com o que foi alterado ou excluído na web.
+- Contrato de sincronização alinhado com o Nicollas e documentado em `contrato-sincronizacao.md`: UUID gerado no app para todo lançamento, lançamentos sempre gravados por `/sincronizacao/enviar`, horários em UTC com sufixo Z, lotes de até 50 itens por lista e cadastros (veículo, plataforma, categoria) somente online, com cache no app.
+- Melhorias definidas pela dupla após a Semana 4: lançamento manual de jornada (`POST /jornadas/manual`), exclusão de jornada (`DELETE /jornadas/:id`, que remove também a quilometragem registrada nela) e campo opcional de observação em ganhos e despesas (migration `add_observacao_ganho_despesa`). Nova regra: jornadas do mesmo usuário não podem se sobrepor (409), valendo para iniciar, editar horários e lançar jornada manual.
+- Backend das funcionalidades RF01 a RF11 (MVP) concluído e testado no Postman, incluindo os cenários de erro (validações, duplicidade, sobreposição, posse de recursos e idempotência da sincronização).
+
+**Próximos passos:**
+- Iniciar o front-end React (Vite + TypeScript): base do projeto, login e cadastro, rotas protegidas e dashboard (RF10) com Recharts, reaproveitando a identidade visual (cores) do app mobile.
+- Semana 6: RF12 – Visualizar Planos, RF13 – Gerenciar Assinatura e RF14 – Consultar Pagamentos.
+- Acompanhar a implementação da sincronização no mobile (Nicollas) e ajustar o backend caso a integração aponte divergências do contrato.
+
+**Dificuldades:**
+- Ao adicionar o campo `observacao`, o `prisma migrate dev` gerou uma migration vazia e depois pediu o nome de uma nova migration. A causa era o `schema.prisma` do projeto estar sem o campo, então o Prisma não via diferença entre o schema e o banco. Resolvido incluindo o campo no schema; as colunas foram criadas pela migration já aplicada.
+- O contrato de sincronização precisou de ajustes em relação ao desenho inicial: o id gerado no app obriga a gravar os lançamentos pelo endpoint de sincronização, o formato de horário exige fuso explícito e a exclusão de jornada passou a existir no backend.
+
+**Observações:**
+- A sincronização envia o estado completo de cada registro (criar e editar são a mesma operação). Itens com `ok` ou `ignorado` saem da fila do app; `erro` com `ERRO_INTERNO` é reenviado; os demais erros ficam locais com o motivo para o usuário corrigir ou descartar.
+- O prazo de 5 minutos após a volta da conexão (RNF11) depende do app disparar o envio ao detectar a conexão (`connectivity_plus`).
+- Decidido não implementar por ora a exibição de planos na tela de login para quem ainda não tem cadastro. Pode ser feita no futuro com uma rota pública de planos.
+- Pendências: limitar o tamanho dos textos nos DTOs antigos com `@MaxLength`; índice único parcial para impedir duas jornadas em aberto por disputa entre requisições (opcional); atualizar o diagrama do modelo lógico e as histórias de usuário no DVP final para refletir a observação, o lançamento manual e a exclusão de jornada.
 
 
 

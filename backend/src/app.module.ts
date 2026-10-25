@@ -10,6 +10,7 @@ import { CategoriasDespesaModule } from './categorias-despesa/categorias-despesa
 import { JornadasModule } from './jornadas/jornadas.module';
 import { QuilometragemModule } from './quilometragem/quilometragem.module';
 import { IndicadoresModule } from './indicadores/indicadores.module';
+import { SincronizacaoModule } from './sincronizacao/sincronizacao.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { IndicadoresModule } from './indicadores/indicadores.module';
     JornadasModule,
     QuilometragemModule,
     IndicadoresModule,
+    SincronizacaoModule,
   ],
 })
 export class AppModule {}

@@ -8,6 +8,11 @@ import { DuplicarGanhoDto } from './dto/duplicar-ganho.dto';
 export class GanhosService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Observação opcional: undefined = não mexe; "" ou null = limpa; texto = grava (sem espaços nas pontas)
+  private normalizarObservacao(valor?: string | null) {
+    return valor?.trim() || null;
+  }
+
   // RN29: GANHO não tem id_usuario direto - a posse é garantida pelo veículo.
   // Veículo removido (ativo = false) não pode receber novos lançamentos.
   private async validarVeiculo(usuarioId: string, id_veiculo: string) {
@@ -42,6 +47,7 @@ export class GanhosService {
         id_plataforma: dto.id_plataforma,
         valor: dto.valor,
         data: new Date(dto.data),
+        observacao: this.normalizarObservacao(dto.observacao),
       },
     });
   }
@@ -84,6 +90,9 @@ export class GanhosService {
         ...(dto.id_plataforma && { id_plataforma: dto.id_plataforma }),
         ...(dto.valor !== undefined && { valor: dto.valor }),
         ...(dto.data && { data: new Date(dto.data) }),
+        ...(dto.observacao !== undefined && {
+          observacao: this.normalizarObservacao(dto.observacao),
+        }),
       },
     });
   }
@@ -109,6 +118,7 @@ export class GanhosService {
         id_veiculo: ganhoOriginal.id_veiculo,
         id_plataforma: ganhoOriginal.id_plataforma,
         valor: ganhoOriginal.valor,
+        observacao: ganhoOriginal.observacao,
         data: dto.data ? new Date(dto.data) : ganhoOriginal.data,
       },
     });

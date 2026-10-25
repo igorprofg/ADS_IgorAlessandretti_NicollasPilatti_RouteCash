@@ -9,12 +9,21 @@ import { UsuarioAtual } from '../common/decorators/usuario-atual.decorator';
 export class IndicadoresController {
   constructor(private readonly indicadoresService: IndicadoresService) {}
 
-  // Exemplos: GET /indicadores  |  GET /indicadores?inicio=2026-10-01&fim=2026-10-31
+  // RF09. Exemplos: GET /indicadores  |  GET /indicadores?inicio=2026-10-01&fim=2026-10-31
   @Get()
   calcular(
     @UsuarioAtual() usuarioId: string,
     @Query() filtro: ConsultaIndicadoresDto,
   ) {
     return this.indicadoresService.calcular(usuarioId, filtro);
+  }
+
+  // RF10 (HU31/HU32): série diária + médias para os gráficos. Mesmo filtro de período do RF09.
+  @Get('serie')
+  serie(
+    @UsuarioAtual() usuarioId: string,
+    @Query() filtro: ConsultaIndicadoresDto,
+  ) {
+    return this.indicadoresService.serie(usuarioId, filtro);
   }
 }

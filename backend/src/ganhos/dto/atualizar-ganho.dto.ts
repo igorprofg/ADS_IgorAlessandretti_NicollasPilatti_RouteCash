@@ -1,4 +1,12 @@
-import { IsDateString, IsNumber, IsOptional, IsPositive, IsUUID } from 'class-validator';
+import {
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 export class AtualizarGanhoDto {
   @IsOptional()
@@ -17,4 +25,10 @@ export class AtualizarGanhoDto {
   @IsOptional()
   @IsDateString({}, { message: 'Data inválida' })
   data?: string;
+
+  // Enviar "" (ou null) limpa a observação; não enviar mantém a atual
+  @IsOptional()
+  @IsString()
+  @MaxLength(255, { message: 'A observação deve ter no máximo 255 caracteres' })
+  observacao?: string | null;
 }
