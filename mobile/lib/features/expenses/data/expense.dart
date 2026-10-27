@@ -2,12 +2,15 @@ class Expense {
   final String idDespesa;
   final String idVeiculo;
   final String idCategoria;
+
   final double valor;
   final DateTime data;
 
   final String? veiculoMarca;
   final String? veiculoModelo;
   final String? categoriaNome;
+
+  final String? observacao;
 
   const Expense({
     required this.idDespesa,
@@ -18,6 +21,7 @@ class Expense {
     this.veiculoMarca,
     this.veiculoModelo,
     this.categoriaNome,
+    this.observacao,
   });
 
   factory Expense.fromJson(Map<String, dynamic> json) {
@@ -33,6 +37,7 @@ class Expense {
       veiculoMarca: veiculo is Map ? veiculo['marca']?.toString() : null,
       veiculoModelo: veiculo is Map ? veiculo['modelo']?.toString() : null,
       categoriaNome: categoria is Map ? categoria['nome']?.toString() : null,
+      observacao: json['observacao']?.toString(),
     );
   }
 }

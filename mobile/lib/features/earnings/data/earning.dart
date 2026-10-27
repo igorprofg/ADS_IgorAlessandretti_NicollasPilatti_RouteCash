@@ -8,6 +8,7 @@ class Earning {
   final String? veiculoMarca;
   final String? veiculoModelo;
   final String? plataformaNome;
+  final String? observacao;
 
   const Earning({
     required this.idGanho,
@@ -18,6 +19,7 @@ class Earning {
     this.veiculoMarca,
     this.veiculoModelo,
     this.plataformaNome,
+    this.observacao,
   });
 
   factory Earning.fromJson(Map<String, dynamic> json) {
@@ -33,6 +35,7 @@ class Earning {
       veiculoMarca: veiculo is Map ? veiculo['marca']?.toString() : null,
       veiculoModelo: veiculo is Map ? veiculo['modelo']?.toString() : null,
       plataformaNome: plataforma is Map ? plataforma['nome']?.toString() : null,
+      observacao: json['observacao']?.toString(),
     );
   }
 }

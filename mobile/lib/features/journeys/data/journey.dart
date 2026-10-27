@@ -1,6 +1,6 @@
 class Journey {
   final String idJornada;
-  final String idUsuario;
+  final String? idUsuario;
   final String idVeiculo;
 
   final DateTime inicio;
@@ -15,7 +15,7 @@ class Journey {
 
   const Journey({
     required this.idJornada,
-    required this.idUsuario,
+    this.idUsuario,
     required this.idVeiculo,
     required this.inicio,
     this.fim,
@@ -29,69 +29,61 @@ class Journey {
   bool get emAndamento => fim == null;
 
   String get veiculoNome {
-    final nome = [
-      veiculoMarca,
-      veiculoModelo,
-    ].whereType<String>().where((e) => e.trim().isNotEmpty).join(' ');
+    final nome = '${veiculoMarca ?? ''} ${veiculoModelo ?? ''}'.trim();
 
     return nome.isEmpty ? 'Veículo' : nome;
+  }
+
+  Duration get duracao {
+    final fimEfetivo = fim ?? DateTime.now();
+
+    if (fimEfetivo.isBefore(inicio)) {
+      return Duration.zero;
+    }
+
+    return fimEfetivo.difference(inicio);
+  }
+
+  int get duracaoTotalMinutos {
+    if (duracaoMinutos != null) {
+      return duracaoMinutos!;
+    }
+
+    return duracao.inMinutes;
   }
 
   factory Journey.fromJson(Map<String, dynamic> json) {
     final veiculo = json['veiculo'];
 
-    Map<String, dynamic>? veiculoJson;
+    String? marca;
+    String? modelo;
+    String? placa;
 
     if (veiculo is Map) {
-      veiculoJson = Map<String, dynamic>.from(veiculo);
+      marca = veiculo['marca']?.toString();
+      modelo = veiculo['modelo']?.toString();
+      placa = veiculo['placa']?.toString();
     }
+
+    final inicio = DateTime.parse(json['inicio'].toString());
+
+    final fimRaw = json['fim'];
+
+    final fim = fimRaw == null ? null : DateTime.parse(fimRaw.toString());
+
+    final duracaoRaw = json['duracao_minutos'];
 
     return Journey(
       idJornada: json['id_jornada'].toString(),
-      idUsuario: json['id_usuario']?.toString() ?? '',
+      idUsuario: json['id_usuario']?.toString(),
       idVeiculo: json['id_veiculo'].toString(),
-
-      inicio: DateTime.parse(json['inicio'].toString()),
-
-      fim: json['fim'] != null ? DateTime.parse(json['fim'].toString()) : null,
-
-      kmRodados: _toDouble(json['km_rodados']),
-
-      duracaoMinutos: _toInt(json['duracao_minutos']),
-
-      veiculoMarca: veiculoJson?['marca']?.toString(),
-
-      veiculoModelo: veiculoJson?['modelo']?.toString(),
-
-      veiculoPlaca: veiculoJson?['placa']?.toString(),
+      inicio: inicio,
+      fim: fim,
+      kmRodados: (json['km_rodados'] as num?)?.toDouble(),
+      duracaoMinutos: (duracaoRaw as num?)?.toInt(),
+      veiculoMarca: json['veiculo_marca']?.toString() ?? marca,
+      veiculoModelo: json['veiculo_modelo']?.toString() ?? modelo,
+      veiculoPlaca: json['veiculo_placa']?.toString() ?? placa,
     );
-  }
-
-  static double? _toDouble(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value.toString());
-  }
-
-  static int? _toInt(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-
-    if (value is int) {
-      return value;
-    }
-
-    if (value is num) {
-      return value.round();
-    }
-
-    return int.tryParse(value.toString());
   }
 }

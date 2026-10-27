@@ -1,177 +1,405 @@
-import 'package:dio/dio.dart';
+import 'package:uuid/uuid.dart';
 
-import '../../../core/network/dio_client.dart';
+import '../../../core/database/app_database.dart';
+import '../../../core/database/database_tables.dart';
+import '../../sync/data/sync_local_repository.dart';
+import '../../sync/services/sync_manager.dart';
 import 'journey.dart';
-import 'start_journey_request.dart';
-import 'update_journey_request.dart';
+
+class JourneyVehicleOption {
+  final String idVeiculo;
+  final String marca;
+  final String modelo;
+  final bool principal;
+
+  const JourneyVehicleOption({
+    required this.idVeiculo,
+    required this.marca,
+    required this.modelo,
+    required this.principal,
+  });
+
+  String get nome {
+    return '$marca $modelo'.trim();
+  }
+}
+
+class JourneySaveResult {
+  final Journey journey;
+  final bool pending;
+
+  const JourneySaveResult({required this.journey, required this.pending});
+}
 
 class JourneyRepository {
-  final Dio _dio;
+  final SyncLocalRepository _localRepository;
+  final SyncManager _syncManager;
 
-  JourneyRepository({Dio? dio}) : _dio = dio ?? DioClient.instance;
-
-  Future<Journey> start(StartJourneyRequest request) async {
-    try {
-      final response = await _dio.post(
-        '/jornadas/iniciar',
-        data: request.toJson(),
-      );
-
-      return Journey.fromJson(Map<String, dynamic>.from(response.data));
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível iniciar a jornada.'),
-      );
-    }
-  }
+  JourneyRepository({
+    required SyncLocalRepository localRepository,
+    required SyncManager syncManager,
+  }) : _localRepository = localRepository,
+       _syncManager = syncManager;
 
   Future<List<Journey>> findAll() async {
-    try {
-      final response = await _dio.get('/jornadas');
+    final db = await AppDatabase.instance.database;
 
-      final lista = response.data as List;
+    final rows = await db.rawQuery('''
+      SELECT
+        j.id_jornada,
+        j.id_veiculo,
+        j.inicio,
+        j.fim,
+        j.km_rodados,
+        j.atualizado_em,
+        v.marca AS veiculo_marca,
+        v.modelo AS veiculo_modelo,
+        v.placa AS veiculo_placa
+      FROM ${DatabaseTables.jornadasLocal} j
+      LEFT JOIN ${DatabaseTables.veiculosCache} v
+        ON v.id_veiculo = j.id_veiculo
+      ORDER BY j.inicio DESC
+      ''');
 
-      return lista
-          .map((item) => Journey.fromJson(Map<String, dynamic>.from(item)))
-          .toList();
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível carregar as jornadas.'),
-      );
-    }
+    return rows.map(_journeyFromRow).toList();
   }
 
   Future<Journey?> findInProgress() async {
-    try {
-      final response = await _dio.get('/jornadas/em-andamento');
+    final db = await AppDatabase.instance.database;
 
-      return Journey.fromJson(Map<String, dynamic>.from(response.data));
-    } on DioException catch (e) {
-      // Não possuir jornada em andamento é uma
-      // situação normal, não um erro para o app.
-      if (e.response?.statusCode == 404) {
-        return null;
-      }
+    final rows = await db.rawQuery('''
+      SELECT
+        j.id_jornada,
+        j.id_veiculo,
+        j.inicio,
+        j.fim,
+        j.km_rodados,
+        j.atualizado_em,
+        v.marca AS veiculo_marca,
+        v.modelo AS veiculo_modelo,
+        v.placa AS veiculo_placa
+      FROM ${DatabaseTables.jornadasLocal} j
+      LEFT JOIN ${DatabaseTables.veiculosCache} v
+        ON v.id_veiculo = j.id_veiculo
+      WHERE j.fim IS NULL
+      ORDER BY j.inicio DESC
+      LIMIT 1
+      ''');
 
-      throw Exception(
-        _getErrorMessage(
-          e,
-          'Não foi possível verificar a jornada em andamento.',
-        ),
-      );
+    if (rows.isEmpty) {
+      return null;
     }
+
+    return _journeyFromRow(rows.first);
   }
 
-  Future<Journey> findOne(String id) async {
-    try {
-      final response = await _dio.get('/jornadas/$id');
+  Future<Journey?> findOne(String idJornada) async {
+    final db = await AppDatabase.instance.database;
 
-      return Journey.fromJson(Map<String, dynamic>.from(response.data));
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível carregar a jornada.'),
-      );
+    final rows = await db.rawQuery(
+      '''
+      SELECT
+        j.id_jornada,
+        j.id_veiculo,
+        j.inicio,
+        j.fim,
+        j.km_rodados,
+        j.atualizado_em,
+        v.marca AS veiculo_marca,
+        v.modelo AS veiculo_modelo,
+        v.placa AS veiculo_placa
+      FROM ${DatabaseTables.jornadasLocal} j
+      LEFT JOIN ${DatabaseTables.veiculosCache} v
+        ON v.id_veiculo = j.id_veiculo
+      WHERE j.id_jornada = ?
+      LIMIT 1
+      ''',
+      [idJornada],
+    );
+
+    if (rows.isEmpty) {
+      return null;
     }
+
+    return _journeyFromRow(rows.first);
   }
 
-  Future<Journey> finish(String id, {DateTime? fim}) async {
-    try {
-      final data = <String, dynamic>{};
+  Future<List<JourneyVehicleOption>> loadVehicles() async {
+    await trySync();
 
-      if (fim != null) {
-        data['fim'] = fim.toUtc().toIso8601String();
-      }
+    final db = await AppDatabase.instance.database;
 
-      final response = await _dio.patch('/jornadas/$id/finalizar', data: data);
+    final rows = await db.query(
+      DatabaseTables.veiculosCache,
+      columns: ['id_veiculo', 'marca', 'modelo', 'principal'],
+      where: 'ativo = ?',
+      whereArgs: [1],
+      orderBy: 'principal DESC, marca ASC, modelo ASC',
+    );
 
-      return Journey.fromJson(Map<String, dynamic>.from(response.data));
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível finalizar a jornada.'),
-      );
-    }
+    return rows
+        .map(
+          (row) => JourneyVehicleOption(
+            idVeiculo: row['id_veiculo'].toString(),
+            marca: row['marca']?.toString() ?? '',
+            modelo: row['modelo']?.toString() ?? '',
+            principal: (row['principal'] as num?)?.toInt() == 1,
+          ),
+        )
+        .toList();
   }
 
-  Future<Journey> update(String id, UpdateJourneyRequest request) async {
-    try {
-      final response = await _dio.patch(
-        '/jornadas/$id',
-        data: request.toJson(),
-      );
+  Future<JourneySaveResult> start({required String idVeiculo}) async {
+    final current = await findInProgress();
 
-      return Journey.fromJson(Map<String, dynamic>.from(response.data));
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível atualizar a jornada.'),
-      );
+    if (current != null) {
+      throw Exception('Já existe uma jornada em andamento.');
     }
+
+    final idJornada = const Uuid().v4();
+
+    final inicio = DateTime.now();
+
+    return _save(
+      idJornada: idJornada,
+      idVeiculo: idVeiculo,
+      inicio: inicio,
+      fim: null,
+      kmRodados: null,
+      validateOverlap: true,
+    );
   }
 
-  // =============================
-  // QUILOMETRAGEM
-  // =============================
-
-  Future<void> registerMileage({
-    required String journeyId,
-    required double km,
+  Future<JourneySaveResult> finish({
+    required Journey journey,
+    DateTime? fim,
+    double? kmRodados,
   }) async {
-    try {
-      await _dio.post(
-        '/quilometragem',
-        data: {'id_jornada': journeyId, 'km_rodados': km},
-      );
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível registrar a quilometragem.'),
-      );
+    final fimEfetivo = fim ?? DateTime.now();
+
+    if (!fimEfetivo.isAfter(journey.inicio)) {
+      throw Exception('O horário final deve ser posterior ao início.');
     }
+
+    return _save(
+      idJornada: journey.idJornada,
+      idVeiculo: journey.idVeiculo,
+      inicio: journey.inicio,
+      fim: fimEfetivo,
+      kmRodados: kmRodados ?? journey.kmRodados,
+      validateOverlap: true,
+    );
   }
 
-  Future<void> updateMileage({
-    required String journeyId,
-    required double km,
+  Future<JourneySaveResult> saveManual({
+    required String idVeiculo,
+    required DateTime inicio,
+    required DateTime fim,
+    double? kmRodados,
   }) async {
+    if (!fim.isAfter(inicio)) {
+      throw Exception('O horário final deve ser posterior ao início.');
+    }
+
+    if (inicio.isAfter(DateTime.now()) || fim.isAfter(DateTime.now())) {
+      throw Exception('A jornada não pode estar no futuro.');
+    }
+
+    return _save(
+      idJornada: const Uuid().v4(),
+      idVeiculo: idVeiculo,
+      inicio: inicio,
+      fim: fim,
+      kmRodados: kmRodados,
+      validateOverlap: true,
+    );
+  }
+
+  Future<JourneySaveResult> update({
+    required String idJornada,
+    required String idVeiculo,
+    required DateTime inicio,
+    required DateTime? fim,
+    required double? kmRodados,
+  }) async {
+    if (fim != null && !fim.isAfter(inicio)) {
+      throw Exception('O horário final deve ser posterior ao início.');
+    }
+
+    if (inicio.isAfter(DateTime.now()) ||
+        (fim != null && fim.isAfter(DateTime.now()))) {
+      throw Exception('A jornada não pode estar no futuro.');
+    }
+
+    return _save(
+      idJornada: idJornada,
+      idVeiculo: idVeiculo,
+      inicio: inicio,
+      fim: fim,
+      kmRodados: kmRodados,
+      validateOverlap: true,
+    );
+  }
+
+  Future<JourneySaveResult> updateMileage({
+    required Journey journey,
+    required double? kmRodados,
+  }) {
+    return update(
+      idJornada: journey.idJornada,
+      idVeiculo: journey.idVeiculo,
+      inicio: journey.inicio,
+      fim: journey.fim,
+      kmRodados: kmRodados,
+    );
+  }
+
+  Future<JourneySaveResult> removeMileage({required Journey journey}) {
+    return updateMileage(journey: journey, kmRodados: null);
+  }
+
+  Future<bool> delete(String idJornada) async {
+    await _localRepository.deleteJornada(idJornada);
+
+    await _localRepository.enqueueDelete(
+      entidade: 'jornada',
+      registroId: idJornada,
+    );
+
+    await trySync();
+
+    return _localRepository.hasPending(
+      entidade: 'jornada',
+      registroId: idJornada,
+    );
+  }
+
+  Future<Set<String>> pendingIds() {
+    return _localRepository.pendingRecordIds(entidade: 'jornada');
+  }
+
+  Future<void> trySync() async {
     try {
-      await _dio.patch('/quilometragem/$journeyId', data: {'km_rodados': km});
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível atualizar a quilometragem.'),
-      );
+      await _syncManager.syncNow();
+    } catch (_) {
+      // Sem backend:
+      // mantém SQLite + outbox.
     }
   }
 
-  Future<String> deleteMileage(String journeyId) async {
-    try {
-      final response = await _dio.delete('/quilometragem/$journeyId');
-
-      if (response.data is Map) {
-        return response.data['mensagem']?.toString() ??
-            'Quilometragem removida com sucesso.';
+  Future<JourneySaveResult> _save({
+    required String idJornada,
+    required String idVeiculo,
+    required DateTime inicio,
+    required DateTime? fim,
+    required double? kmRodados,
+    required bool validateOverlap,
+  }) async {
+    if (kmRodados != null) {
+      if (kmRodados <= 0) {
+        throw Exception('A quilometragem deve ser maior que zero.');
       }
 
-      return 'Quilometragem removida com sucesso.';
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível remover a quilometragem.'),
-      );
+      if (kmRodados > 999999.99) {
+        throw Exception('Quilometragem acima do limite permitido.');
+      }
+
+      final rounded = double.parse(kmRodados.toStringAsFixed(2));
+
+      if ((rounded - kmRodados).abs() > 0.000001) {
+        throw Exception('A quilometragem aceita no máximo 2 casas decimais.');
+      }
+    }
+
+    if (validateOverlap) {
+      await _validateOverlap(idJornada: idJornada, inicio: inicio, fim: fim);
+    }
+
+    final now = DateTime.now().toUtc();
+
+    final payload = <String, dynamic>{
+      'id_jornada': idJornada,
+      'id_veiculo': idVeiculo,
+      'inicio': inicio.toUtc().toIso8601String(),
+      'fim': fim?.toUtc().toIso8601String(),
+      'km_rodados': kmRodados,
+      'atualizado_em': now.toIso8601String(),
+    };
+
+    await _localRepository.upsertJornada(payload);
+
+    await _localRepository.enqueueUpsert(
+      entidade: 'jornada',
+      registroId: idJornada,
+      payload: payload,
+      atualizadoEm: now,
+    );
+
+    await trySync();
+
+    final journey = await findOne(idJornada);
+
+    if (journey == null) {
+      throw Exception('Não foi possível carregar a jornada salva.');
+    }
+
+    final pending = await _localRepository.hasPending(
+      entidade: 'jornada',
+      registroId: idJornada,
+    );
+
+    return JourneySaveResult(journey: journey, pending: pending);
+  }
+
+  Future<void> _validateOverlap({
+    required String idJornada,
+    required DateTime inicio,
+    required DateTime? fim,
+  }) async {
+    final journeys = await findAll();
+
+    for (final other in journeys) {
+      if (other.idJornada == idJornada) {
+        continue;
+      }
+
+      final otherEnd = other.fim;
+
+      final overlaps =
+          (fim == null || other.inicio.isBefore(fim)) &&
+          (otherEnd == null || otherEnd.isAfter(inicio));
+
+      if (overlaps) {
+        if (other.emAndamento) {
+          throw Exception('Já existe uma jornada em andamento.');
+        }
+
+        throw Exception(
+          'Este horário se sobrepõe a outra jornada já registrada.',
+        );
+      }
     }
   }
 
-  String _getErrorMessage(DioException e, String fallback) {
-    final data = e.response?.data;
+  Journey _journeyFromRow(Map<String, Object?> row) {
+    final inicio = DateTime.parse(row['inicio'].toString()).toLocal();
 
-    if (data is Map) {
-      final message = data['message'];
+    final fimRaw = row['fim'];
 
-      if (message is String) {
-        return message;
-      }
+    final fim = fimRaw == null
+        ? null
+        : DateTime.parse(fimRaw.toString()).toLocal();
 
-      if (message is List && message.isNotEmpty) {
-        return message.first.toString();
-      }
-    }
-
-    return fallback;
+    return Journey(
+      idJornada: row['id_jornada'].toString(),
+      idVeiculo: row['id_veiculo'].toString(),
+      inicio: inicio,
+      fim: fim,
+      kmRodados: (row['km_rodados'] as num?)?.toDouble(),
+      duracaoMinutos: fim == null ? null : fim.difference(inicio).inMinutes,
+      veiculoMarca: row['veiculo_marca']?.toString(),
+      veiculoModelo: row['veiculo_modelo']?.toString(),
+      veiculoPlaca: row['veiculo_placa']?.toString(),
+    );
   }
 }

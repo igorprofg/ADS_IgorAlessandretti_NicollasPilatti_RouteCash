@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
-import '../../vehicles/data/vehicle.dart';
-import '../../vehicles/providers/vehicle_providers.dart';
-
-import '../data/create_expense_request.dart';
 import '../data/expense.dart';
-import '../data/expense_category.dart';
-import '../data/update_expense_request.dart';
-
+import '../data/expense_repository.dart';
 import '../providers/expense_providers.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
@@ -21,12 +16,14 @@ class ExpenseFormPage extends ConsumerStatefulWidget {
 }
 
 class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController _valorController = TextEditingController();
+  final _valorController = TextEditingController();
 
-  List<Vehicle> _vehicles = [];
-  List<ExpenseCategory> _categories = [];
+  final _observacaoController = TextEditingController();
+
+  List<ExpenseVehicleOption> _vehicles = [];
+  List<ExpenseCategoryOption> _categories = [];
 
   String? _idVeiculo;
   String? _idCategoria;
@@ -51,6 +48,8 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
 
       _valorController.text = widget.expense!.valor.toStringAsFixed(2);
 
+      _observacaoController.text = widget.expense!.observacao ?? '';
+
       _data = widget.expense!.data;
     }
 
@@ -60,41 +59,59 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   @override
   void dispose() {
     _valorController.dispose();
+    _observacaoController.dispose();
+
     super.dispose();
   }
 
   Future<void> _carregarDados() async {
     try {
-      final vehicleRepository = ref.read(vehicleRepositoryProvider);
+      final repository = ref.read(expenseRepositoryProvider);
 
-      final categoryRepository = ref.read(expenseCategoryRepositoryProvider);
+      final referenceData = await repository.loadReferenceData();
 
-      final resultados = await Future.wait([
-        vehicleRepository.findAll(),
-        categoryRepository.findAll(),
-      ]);
-
-      final vehicles = resultados[0] as List<Vehicle>;
-
-      final categories = resultados[1] as List<ExpenseCategory>;
-
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
-        _vehicles = vehicles;
-        _categories = categories;
+        _vehicles = referenceData.vehicles;
 
-        _idVeiculo ??= vehicles.isNotEmpty ? vehicles.first.idVeiculo : null;
+        _categories = referenceData.categories;
 
-        _idCategoria ??= categories.isNotEmpty
-            ? categories.first.idCategoria
+        if (_idVeiculo == null) {
+          ExpenseVehicleOption? principal;
+
+          for (final vehicle in _vehicles) {
+            if (vehicle.principal) {
+              principal = vehicle;
+              break;
+            }
+          }
+
+          _idVeiculo =
+              principal?.idVeiculo ??
+              (_vehicles.isNotEmpty ? _vehicles.first.idVeiculo : null);
+        }
+
+        _idCategoria ??= _categories.isNotEmpty
+            ? _categories.first.idCategoria
             : null;
 
         _carregando = false;
-        _erro = null;
+
+        if (_vehicles.isEmpty || _categories.isEmpty) {
+          _erro =
+              'Não há veículos e categorias disponíveis no cache local. '
+              'Conecte-se à internet e sincronize o aplicativo ao menos uma vez.';
+        } else {
+          _erro = null;
+        }
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _erro = e.toString().replaceFirst('Exception: ', '');
@@ -104,56 +121,12 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     }
   }
 
-  Future<void> _criarCategoria() async {
-    final nome = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return const _NewCategoryDialog();
-      },
-    );
-
-    if (nome == null || nome.trim().isEmpty) {
-      return;
-    }
-
-    try {
-      final repository = ref.read(expenseCategoryRepositoryProvider);
-
-      final categoria = await repository.create(nome.trim());
-
-      if (!mounted) return;
-
-      setState(() {
-        _categories = [..._categories, categoria];
-
-        _categories.sort(
-          (a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()),
-        );
-
-        _idCategoria = categoria.idCategoria;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Categoria criada com sucesso.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    }
-  }
-
   Future<void> _selecionarData() async {
     final selecionada = await showDatePicker(
       context: context,
       initialDate: _data,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
-      helpText: 'Selecionar data da despesa',
-      cancelText: 'Cancelar',
-      confirmText: 'Selecionar',
     );
 
     if (selecionada == null) {
@@ -179,11 +152,9 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     }
 
     if (_idVeiculo == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cadastre um veículo antes de registrar uma despesa.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Selecione um veículo.')));
 
       return;
     }
@@ -204,6 +175,8 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       return;
     }
 
+    FocusManager.instance.primaryFocus?.unfocus();
+
     setState(() {
       _salvando = true;
     });
@@ -211,32 +184,36 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     try {
       final repository = ref.read(expenseRepositoryProvider);
 
-      if (_editando) {
-        await repository.update(
-          widget.expense!.idDespesa,
-          UpdateExpenseRequest(
-            idVeiculo: _idVeiculo,
-            idCategoria: _idCategoria,
-            valor: valor,
-            data: _data,
-          ),
-        );
-      } else {
-        await repository.create(
-          CreateExpenseRequest(
-            idVeiculo: _idVeiculo!,
-            idCategoria: _idCategoria!,
-            valor: valor,
-            data: _data,
+      final idDespesa = _editando
+          ? widget.expense!.idDespesa
+          : const Uuid().v4();
+
+      final pending = await repository.save(
+        idDespesa: idDespesa,
+        idVeiculo: _idVeiculo!,
+        idCategoria: _idCategoria!,
+        valor: valor,
+        data: _data,
+        observacao: _observacaoController.text,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (pending) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Despesa salva no aparelho. Sincronização pendente.'),
           ),
         );
       }
 
-      if (!mounted) return;
-
       Navigator.pop(context, true);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
@@ -250,38 +227,6 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     }
   }
 
-  Widget _buildErro() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 52),
-            const SizedBox(height: 16),
-            Text(
-              _erro ?? 'Não foi possível carregar os dados.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() {
-                  _carregando = true;
-                  _erro = null;
-                });
-
-                _carregarDados();
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Tentar novamente'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -293,45 +238,31 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
           : _erro != null
           ? _buildErro()
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      _editando
-                          ? 'Atualize os dados da despesa.'
-                          : 'Informe os dados da nova despesa.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-
-                    const SizedBox(height: 22),
-
                     DropdownButtonFormField<String>(
                       initialValue: _idVeiculo,
                       decoration: const InputDecoration(
                         labelText: 'Veículo',
-                        prefixIcon: Icon(Icons.directions_car_outlined),
+                        border: OutlineInputBorder(),
                       ),
                       items: _vehicles.map((vehicle) {
                         return DropdownMenuItem<String>(
                           value: vehicle.idVeiculo,
-                          child: Text(
-                            '${vehicle.marca} '
-                            '${vehicle.modelo}',
-                          ),
+                          child: Text(vehicle.nome),
                         );
                       }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _idVeiculo = value;
-                        });
-                      },
+                      onChanged: _salvando
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _idVeiculo = value;
+                              });
+                            },
                       validator: (value) {
                         if (value == null) {
                           return 'Selecione um veículo.';
@@ -343,89 +274,61 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
 
                     const SizedBox(height: 16),
 
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _idCategoria,
-                            decoration: const InputDecoration(
-                              labelText: 'Categoria',
-                              prefixIcon: Icon(Icons.category_outlined),
-                            ),
-                            items: _categories.map((category) {
-                              return DropdownMenuItem<String>(
-                                value: category.idCategoria,
-                                child: Text(
-                                  category.nome,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
+                    DropdownButtonFormField<String>(
+                      initialValue: _idCategoria,
+                      decoration: const InputDecoration(
+                        labelText: 'Categoria',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _categories.map((category) {
+                        return DropdownMenuItem<String>(
+                          value: category.idCategoria,
+                          child: Text(category.nome),
+                        );
+                      }).toList(),
+                      onChanged: _salvando
+                          ? null
+                          : (value) {
                               setState(() {
                                 _idCategoria = value;
                               });
                             },
-                            validator: (value) {
-                              if (value == null) {
-                                return 'Selecione uma categoria.';
-                              }
+                      validator: (value) {
+                        if (value == null) {
+                          return 'Selecione uma categoria.';
+                        }
 
-                              return null;
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        SizedBox(
-                          height: 56,
-                          child: IconButton.filled(
-                            onPressed: _criarCategoria,
-                            tooltip: 'Nova categoria',
-                            icon: const Icon(Icons.add),
-                          ),
-                        ),
-                      ],
+                        return null;
+                      },
                     ),
 
                     const SizedBox(height: 8),
 
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: Text(
-                        'Use o botão + para criar uma categoria personalizada.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                    Text(
+                      'As categorias disponíveis offline são as da última sincronização.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
 
                     TextFormField(
                       controller: _valorController,
+                      enabled: !_salvando,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      textInputAction: TextInputAction.done,
                       decoration: const InputDecoration(
                         labelText: 'Valor',
-                        prefixIcon: Icon(Icons.payments_outlined),
                         prefixText: 'R\$ ',
-                        hintText: '0,00',
+                        border: OutlineInputBorder(),
                       ),
                       validator: (value) {
-                        final texto = (value ?? '').trim().replaceAll(',', '.');
-
-                        final numero = double.tryParse(texto);
-
-                        if (texto.isEmpty) {
-                          return 'Informe o valor da despesa.';
-                        }
+                        final numero = double.tryParse(
+                          (value ?? '').trim().replaceAll(',', '.'),
+                        );
 
                         if (numero == null) {
                           return 'Informe um valor válido.';
@@ -442,39 +345,44 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                     const SizedBox(height: 16),
 
                     InkWell(
-                      onTap: _selecionarData,
-                      borderRadius: BorderRadius.circular(14),
+                      onTap: _salvando ? null : _selecionarData,
                       child: InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Data',
-                          prefixIcon: Icon(Icons.calendar_month_outlined),
-                          suffixIcon: Icon(Icons.chevron_right),
+                          prefixIcon: Icon(Icons.calendar_today_outlined),
+                          border: OutlineInputBorder(),
                         ),
-                        child: Text(
-                          _formatarData(_data),
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                        child: Text(_formatarData(_data)),
                       ),
                     ),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _observacaoController,
+                      enabled: !_salvando,
+                      maxLength: 255,
+                      maxLines: 3,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Observação (opcional)',
+                        prefixIcon: Icon(Icons.notes_outlined),
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
 
                     FilledButton.icon(
                       onPressed: _salvando ? null : _salvar,
                       icon: _salvando
                           ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : Icon(
-                              _editando
-                                  ? Icons.save_outlined
-                                  : Icons.add_circle_outline,
-                            ),
+                          : const Icon(Icons.save_outlined),
                       label: Text(
                         _salvando
                             ? 'Salvando...'
@@ -489,77 +397,30 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
             ),
     );
   }
-}
 
-class _NewCategoryDialog extends StatefulWidget {
-  const _NewCategoryDialog();
+  Widget _buildErro() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.cloud_off_outlined, size: 52),
 
-  @override
-  State<_NewCategoryDialog> createState() => _NewCategoryDialogState();
-}
+            const SizedBox(height: 16),
 
-class _NewCategoryDialogState extends State<_NewCategoryDialog> {
-  final TextEditingController _controller = TextEditingController();
+            Text(_erro!, textAlign: TextAlign.center),
 
-  String? _erro;
+            const SizedBox(height: 20),
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _criar() {
-    final nome = _controller.text.trim();
-
-    if (nome.isEmpty) {
-      setState(() {
-        _erro = 'Informe o nome da categoria.';
-      });
-
-      return;
-    }
-
-    FocusManager.instance.primaryFocus?.unfocus();
-
-    Navigator.of(context).pop(nome);
-  }
-
-  void _cancelar() {
-    FocusManager.instance.primaryFocus?.unfocus();
-
-    Navigator.of(context).pop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Nova categoria'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        textCapitalization: TextCapitalization.sentences,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(
-          labelText: 'Nome da categoria',
-          hintText: 'Ex.: Lavagem',
-          errorText: _erro,
+            FilledButton.icon(
+              onPressed: _carregarDados,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Tentar novamente'),
+            ),
+          ],
         ),
-        onChanged: (_) {
-          if (_erro != null) {
-            setState(() {
-              _erro = null;
-            });
-          }
-        },
-        onSubmitted: (_) {
-          _criar();
-        },
       ),
-      actions: [
-        TextButton(onPressed: _cancelar, child: const Text('Cancelar')),
-        FilledButton(onPressed: _criar, child: const Text('Criar')),
-      ],
     );
   }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/journey.dart';
-import '../data/update_journey_request.dart';
+import '../data/journey_repository.dart';
 import '../providers/journey_providers.dart';
 
 class JourneyEditPage extends ConsumerStatefulWidget {
@@ -15,27 +15,32 @@ class JourneyEditPage extends ConsumerStatefulWidget {
 }
 
 class _JourneyEditPageState extends ConsumerState<JourneyEditPage> {
-  final _formKey = GlobalKey<FormState>();
   final _kmController = TextEditingController();
 
+  List<JourneyVehicleOption> _vehicles = [];
+
+  late String _idVeiculo;
   late DateTime _inicio;
   DateTime? _fim;
 
-  bool _salvando = false;
-  bool _removendoKm = false;
+  bool _loading = true;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
 
-    _inicio = widget.journey.inicio.toLocal();
-    _fim = widget.journey.fim?.toLocal();
+    _idVeiculo = widget.journey.idVeiculo;
+
+    _inicio = widget.journey.inicio;
+
+    _fim = widget.journey.fim;
 
     if (widget.journey.kmRodados != null) {
-      _kmController.text = widget.journey.kmRodados!
-          .toStringAsFixed(2)
-          .replaceAll('.', ',');
+      _kmController.text = widget.journey.kmRodados!.toStringAsFixed(2);
     }
+
+    Future.microtask(_load);
   }
 
   @override
@@ -44,568 +49,211 @@ class _JourneyEditPageState extends ConsumerState<JourneyEditPage> {
     super.dispose();
   }
 
-  Future<DateTime?> _selecionarDataHora(
-    DateTime atual, {
-    required String titulo,
-  }) async {
-    final data = await showDatePicker(
+  Future<void> _load() async {
+    final vehicles = await ref.read(journeyRepositoryProvider).loadVehicles();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _vehicles = vehicles;
+      _loading = false;
+    });
+  }
+
+  Future<DateTime?> _pickDateTime(DateTime initial) async {
+    final date = await showDatePicker(
       context: context,
-      initialDate: atual,
+      initialDate: initial,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      helpText: titulo,
-      cancelText: 'Cancelar',
-      confirmText: 'Selecionar',
     );
 
-    if (data == null) {
+    if (date == null || !mounted) {
       return null;
     }
 
-    if (!mounted) return null;
-
-    final horario = await showTimePicker(
+    final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(atual),
-      helpText: titulo,
-      cancelText: 'Cancelar',
-      confirmText: 'Selecionar',
+      initialTime: TimeOfDay.fromDateTime(initial),
     );
 
-    if (horario == null) {
+    if (time == null) {
       return null;
     }
 
-    return DateTime(
-      data.year,
-      data.month,
-      data.day,
-      horario.hour,
-      horario.minute,
-    );
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
-  Future<void> _editarInicio() async {
-    final selecionado = await _selecionarDataHora(
-      _inicio,
-      titulo: 'Horário de início',
-    );
+  Future<void> _save() async {
+    final kmText = _kmController.text.trim().replaceAll(',', '.');
 
-    if (selecionado == null || !mounted) {
+    final km = kmText.isEmpty ? null : double.tryParse(kmText);
+
+    if (kmText.isNotEmpty && km == null) {
+      _message('Informe uma quilometragem válida.');
       return;
     }
 
     setState(() {
-      _inicio = selecionado;
+      _saving = true;
     });
-  }
-
-  Future<void> _editarFim() async {
-    final atual = _fim ?? DateTime.now();
-
-    final selecionado = await _selecionarDataHora(
-      atual,
-      titulo: 'Horário final',
-    );
-
-    if (selecionado == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _fim = selecionado;
-    });
-  }
-
-  double? _parseKm() {
-    final texto = _kmController.text.trim();
-
-    if (texto.isEmpty) {
-      return null;
-    }
-
-    return double.tryParse(texto.replaceAll(',', '.'));
-  }
-
-  String _formatarDataHora(DateTime data) {
-    final dia = data.day.toString().padLeft(2, '0');
-    final mes = data.month.toString().padLeft(2, '0');
-
-    final hora = data.hour.toString().padLeft(2, '0');
-    final minuto = data.minute.toString().padLeft(2, '0');
-
-    return '$dia/$mes/${data.year} às $hora:$minuto';
-  }
-
-  String _formatarDuracao() {
-    final fim = _fim;
-
-    if (fim == null) {
-      return 'Em andamento';
-    }
-
-    final diferenca = fim.difference(_inicio);
-
-    if (diferenca.isNegative || diferenca.inMinutes == 0) {
-      return 'Período inválido';
-    }
-
-    final horas = diferenca.inMinutes ~/ 60;
-    final minutos = diferenca.inMinutes % 60;
-
-    if (horas == 0) {
-      return '${minutos}min';
-    }
-
-    if (minutos == 0) {
-      return '${horas}h';
-    }
-
-    return '${horas}h ${minutos}min';
-  }
-
-  Future<void> _salvar() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (_fim != null && !_fim!.isAfter(_inicio)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'O horário final deve ser posterior ao horário de início.',
-          ),
-        ),
-      );
-
-      return;
-    }
-
-    if (_inicio.isAfter(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('O horário de início não pode estar no futuro.'),
-        ),
-      );
-
-      return;
-    }
-
-    if (_fim != null && _fim!.isAfter(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('O horário final não pode estar no futuro.'),
-        ),
-      );
-
-      return;
-    }
-
-    FocusManager.instance.primaryFocus?.unfocus();
-
-    setState(() {
-      _salvando = true;
-    });
-
-    final repository = ref.read(journeyRepositoryProvider);
 
     try {
-      await repository.update(
-        widget.journey.idJornada,
-        UpdateJourneyRequest(inicio: _inicio, fim: _fim),
-      );
-
-      final km = _parseKm();
-
-      if (km != null) {
-        if (widget.journey.kmRodados == null) {
-          await repository.registerMileage(
-            journeyId: widget.journey.idJornada,
-            km: km,
+      final result = await ref
+          .read(journeyRepositoryProvider)
+          .update(
+            idJornada: widget.journey.idJornada,
+            idVeiculo: _idVeiculo,
+            inicio: _inicio,
+            fim: _fim,
+            kmRodados: km,
           );
-        } else {
-          await repository.updateMileage(
-            journeyId: widget.journey.idJornada,
-            km: km,
-          );
-        }
+
+      if (!mounted) {
+        return;
       }
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Jornada atualizada com sucesso.')),
-      );
+      if (result.pending) {
+        _message('Alteração salva no aparelho. Sincronização pendente.');
+      }
 
       Navigator.pop(context, true);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      _message(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
-          _salvando = false;
+          _saving = false;
         });
       }
     }
   }
 
-  Future<void> _removerQuilometragem() async {
-    if (widget.journey.kmRodados == null) {
-      return;
-    }
+  void _message(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
 
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          icon: const Icon(Icons.delete_outline),
-          title: const Text('Remover quilometragem?'),
-          content: const Text(
-            'A jornada será mantida. Apenas o registro de quilômetros '
-            'rodados será removido.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('Remover'),
-            ),
-          ],
-        );
-      },
-    );
+  String _formatDateTime(DateTime value) {
+    final d = value.day.toString().padLeft(2, '0');
 
-    if (confirmar != true || !mounted) {
-      return;
-    }
+    final m = value.month.toString().padLeft(2, '0');
 
-    setState(() {
-      _removendoKm = true;
-    });
+    final h = value.hour.toString().padLeft(2, '0');
 
-    try {
-      final repository = ref.read(journeyRepositoryProvider);
+    final min = value.minute.toString().padLeft(2, '0');
 
-      await repository.deleteMileage(widget.journey.idJornada);
-
-      if (!mounted) return;
-
-      _kmController.clear();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Quilometragem removida com sucesso.')),
-      );
-
-      Navigator.pop(context, true);
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _removendoKm = false;
-        });
-      }
-    }
+    return '$d/$m/${value.year} $h:$min';
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Editar jornada')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Icon(
-                          Icons.directions_car_outlined,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.journey.veiculoNome,
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (widget.journey.veiculoPlaca != null &&
-                                widget.journey.veiculoPlaca!.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                widget.journey.veiculoPlaca!,
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _idVeiculo,
+                  decoration: const InputDecoration(
+                    labelText: 'Veículo',
+                    border: OutlineInputBorder(),
                   ),
-                ),
-              ),
-
-              const SizedBox(height: 22),
-
-              const Text(
-                'Horários',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-
-              const SizedBox(height: 12),
-
-              _DateTimeField(
-                label: 'Início',
-                value: _formatarDataHora(_inicio),
-                icon: Icons.play_circle_outline,
-                onTap: _salvando ? null : _editarInicio,
-              ),
-
-              const SizedBox(height: 12),
-
-              _DateTimeField(
-                label: 'Fim',
-                value: _fim != null
-                    ? _formatarDataHora(_fim!)
-                    : 'Não finalizada',
-                icon: Icons.stop_circle_outlined,
-                onTap: _salvando ? null : _editarFim,
-              ),
-
-              const SizedBox(height: 14),
-
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.timer_outlined,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Duração',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const Spacer(),
-                    Text(
-                      _formatarDuracao(),
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 28),
-
-              const Text(
-                'Quilometragem',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-
-              const SizedBox(height: 5),
-
-              Text(
-                widget.journey.kmRodados == null
-                    ? 'Nenhuma quilometragem foi registrada nesta jornada.'
-                    : 'Altere os quilômetros rodados ou remova o registro.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              TextFormField(
-                controller: _kmController,
-                enabled: !_salvando && !_removendoKm,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'KM rodados',
-                  hintText: 'Ex.: 126,4',
-                  prefixIcon: Icon(Icons.route_outlined),
-                  suffixText: 'km',
-                ),
-                validator: (value) {
-                  final texto = (value ?? '').trim();
-
-                  if (texto.isEmpty) {
-                    return null;
-                  }
-
-                  final decimal = RegExp(r'^\d+([,.]\d{1,2})?$');
-
-                  if (!decimal.hasMatch(texto)) {
-                    return 'Use no máximo 2 casas decimais.';
-                  }
-
-                  final km = double.tryParse(texto.replaceAll(',', '.'));
-
-                  if (km == null) {
-                    return 'Informe uma quilometragem válida.';
-                  }
-
-                  if (km <= 0) {
-                    return 'A quilometragem deve ser maior que zero.';
-                  }
-
-                  if (km > 999999.99) {
-                    return 'Quilometragem acima do limite permitido.';
-                  }
-
-                  return null;
-                },
-              ),
-
-              if (widget.journey.kmRodados != null) ...[
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: _salvando || _removendoKm
+                  items: _vehicles.map((vehicle) {
+                    return DropdownMenuItem<String>(
+                      value: vehicle.idVeiculo,
+                      child: Text(vehicle.nome),
+                    );
+                  }).toList(),
+                  onChanged: _saving
                       ? null
-                      : _removerQuilometragem,
-                  icon: _removendoKm
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.delete_outline),
-                  label: Text(
-                    _removendoKm ? 'Removendo...' : 'Remover quilometragem',
+                      : (value) {
+                          if (value != null) {
+                            setState(() {
+                              _idVeiculo = value;
+                            });
+                          }
+                        },
+                ),
+
+                const SizedBox(height: 16),
+
+                InkWell(
+                  onTap: _saving
+                      ? null
+                      : () async {
+                          final value = await _pickDateTime(_inicio);
+
+                          if (value != null && mounted) {
+                            setState(() {
+                              _inicio = value;
+                            });
+                          }
+                        },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Início',
+                      border: OutlineInputBorder(),
+                    ),
+                    child: Text(_formatDateTime(_inicio)),
                   ),
+                ),
+
+                const SizedBox(height: 16),
+
+                if (_fim != null)
+                  InkWell(
+                    onTap: _saving
+                        ? null
+                        : () async {
+                            final value = await _pickDateTime(_fim!);
+
+                            if (value != null && mounted) {
+                              setState(() {
+                                _fim = value;
+                              });
+                            }
+                          },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Fim',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Text(_formatDateTime(_fim!)),
+                    ),
+                  ),
+
+                if (_fim != null) const SizedBox(height: 16),
+
+                TextField(
+                  controller: _kmController,
+                  enabled: !_saving,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Quilometragem rodada (opcional)',
+                    suffixText: 'km',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: const Icon(Icons.save_outlined),
+                  label: Text(_saving ? 'Salvando...' : 'Salvar alterações'),
                 ),
               ],
-
-              const SizedBox(height: 30),
-
-              FilledButton.icon(
-                onPressed: _salvando || _removendoKm ? null : _salvar,
-                icon: _salvando
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.save_outlined),
-                label: Text(_salvando ? 'Salvando...' : 'Salvar alterações'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DateTimeField extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  const _DateTimeField({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: theme.dividerColor),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: theme.colorScheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.edit_outlined, size: 19),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }
