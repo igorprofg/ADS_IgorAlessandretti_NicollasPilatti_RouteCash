@@ -2,6 +2,10 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/dio_client.dart';
 import 'platform.dart';
+import 'dart:convert';
+
+import '../../../core/database/app_database.dart';
+import '../../../core/database/database_tables.dart';
 
 class PlatformRepository {
   final Dio _dio;
@@ -9,19 +13,29 @@ class PlatformRepository {
   PlatformRepository({Dio? dio}) : _dio = dio ?? DioClient.instance;
 
   Future<List<Platform>> findAll() async {
-    try {
-      final response = await _dio.get('/plataformas');
+    final db = await AppDatabase.instance.database;
 
-      final lista = response.data as List;
+    final rows = await db.query(
+      DatabaseTables.plataformasCache,
+      orderBy: 'padrao DESC, ativa DESC, nome ASC',
+    );
 
-      return lista
-          .map((item) => Platform.fromJson(Map<String, dynamic>.from(item)))
-          .toList();
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível carregar as plataformas.'),
-      );
-    }
+    return rows.map((row) {
+      final rawJson = row['raw_json']?.toString();
+
+      if (rawJson != null && rawJson.isNotEmpty) {
+        final json = jsonDecode(rawJson) as Map<String, dynamic>;
+
+        return Platform.fromJson(json);
+      }
+
+      return Platform.fromJson({
+        'id_plataforma': row['id_plataforma'].toString(),
+        'nome': row['nome']?.toString() ?? '',
+        'ativa': (row['ativa'] as num?)?.toInt() == 1,
+        'padrao': (row['padrao'] as num?)?.toInt() == 1,
+      });
+    }).toList();
   }
 
   Future<Platform> create(String nome) async {

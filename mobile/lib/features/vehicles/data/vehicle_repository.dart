@@ -4,6 +4,9 @@ import '../../../core/network/dio_client.dart';
 import 'create_vehicle_request.dart';
 import 'update_vehicle_request.dart';
 import 'vehicle.dart';
+import '../../../core/database/app_database.dart';
+import '../../../core/database/database_tables.dart';
+import 'dart:convert';
 
 class InactiveVehicleConflict implements Exception {
   final String message;
@@ -24,19 +27,31 @@ class VehicleRepository {
   VehicleRepository({Dio? dio}) : _dio = dio ?? DioClient.instance;
 
   Future<List<Vehicle>> findAll() async {
-    try {
-      final response = await _dio.get('/veiculos');
+    final db = await AppDatabase.instance.database;
 
-      final lista = response.data as List;
+    final rows = await db.query(
+      DatabaseTables.veiculosCache,
+      orderBy: 'principal DESC, ativo DESC, marca ASC, modelo ASC',
+    );
 
-      return lista
-          .map((item) => Vehicle.fromJson(Map<String, dynamic>.from(item)))
-          .toList();
-    } on DioException catch (e) {
-      throw Exception(
-        _getErrorMessage(e, 'Não foi possível carregar os veículos.'),
-      );
-    }
+    return rows.map((row) {
+      final rawJson = row['raw_json']?.toString();
+
+      if (rawJson != null && rawJson.isNotEmpty) {
+        final json = jsonDecode(rawJson) as Map<String, dynamic>;
+
+        return Vehicle.fromJson(json);
+      }
+
+      return Vehicle.fromJson({
+        'id_veiculo': row['id_veiculo'].toString(),
+        'marca': row['marca']?.toString() ?? '',
+        'modelo': row['modelo']?.toString() ?? '',
+        'placa': row['placa']?.toString(),
+        'ativo': (row['ativo'] as num?)?.toInt() == 1,
+        'principal': (row['principal'] as num?)?.toInt() == 1,
+      });
+    }).toList();
   }
 
   Future<List<Vehicle>> findInactive() async {
