@@ -725,6 +725,28 @@ mobile/lib/features/home/presentation/home_page.dart
 - Pendências: limitar o tamanho dos textos nos DTOs antigos com `@MaxLength`; índice único parcial para impedir duas jornadas em aberto por disputa entre requisições (opcional); atualizar o diagrama do modelo lógico e as histórias de usuário no DVP final para refletir a observação, o lançamento manual e a exclusão de jornada.
 
 
+### 01/11/2026 — Validação do Backend (Sincronização RF11) e Setup Inicial do Frontend
+**O que foi feito:**
+- Conclusão com 100% de sucesso da bateria completa de testes de sincronização no Postman: veículos novos, idempotência (`JA_SINCRONIZADO`), proteção contra sobrescrita com dados mais antigos (`SERVIDOR_MAIS_RECENTE`), exclusividade de veículo principal e normalização de veículos inativos.
+- Validação das regras de negócio de unicidade e restrições: placas duplicadas retornando `CONFLITO` limpo, validações de tamanho de caracteres retornando `VALIDACAO`, e plataformas padrão aceitando atualização de status (`ativa`) preservando o nome original.
+- Teste e validação do Lote Misto de sincronização, provando que a ordenação interna do serviço processa veículos e plataformas primeiro para permitir vínculos de ganhos/despesas no mesmo ciclo.
+- Inicialização do ambiente frontend utilizando Vite, React 18, TypeScript, Axios, React Router DOM 6 e Recharts 2.
+- Configuração dos arquivos estruturais e de estilo no frontend (`tema.css`, `global.css`, `api.ts`, `main.tsx` e `App.tsx`), além do mapeamento das variáveis de ambiente (`.env`).
+- Verificação visual bem-sucedida do servidor de desenvolvimento do frontend rodando em `http://localhost:5173/`, exibindo a identidade visual correta do RouteCash.
+
+**Próximos passos:**
+- Iniciar a implementação da arquitetura de autenticação no frontend na ordem de dependência: `usuario.tipos.ts`, `autenticacao.servico.ts`, `AutenticacaoContexto.tsx`, `RotaPrivada.tsx`, `Rotas.tsx`, seguidas pelas páginas de `Login.tsx` e `Cadastro.tsx`.
+
+**Dificuldades:**
+- Conflito de dependências (*peer dependencies*) entre o TypeScript gerado pelo template padrão do Vite e o pacote `typescript-eslint`, solucionado utilizando a flag `--legacy-peer-deps` durante o `npm install`.
+- Ausência temporária da palavra-chave `export` nas interfaces e tipos de retorno do `sincronizacao.service.ts`, o que gerava erro de compilação no NestJS ao expô-los no Controller (resolvido exportando explicitamente os tipos `Status`, `ResultadoItem` e `Resultado`).
+- Ajustes pontuais nos payloads de testes da API para garantir a utilização de UUIDs v4 válidos (padrão RFC 4122) e timestamps UTC corretos com sufixo `Z`.
+
+**Observações:**
+- O backend está inteiramente estável, testado e validado. O setup do frontend encontra-se pronto e operando perfeitamente para receber o desenvolvimento das telas e fluxos de usuário.
+
+
+
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--

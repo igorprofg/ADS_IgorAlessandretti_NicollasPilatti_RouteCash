@@ -1,0 +1,52 @@
+/* Tokens de cor e forma do RouteCash web.
+   Espelham o AppTheme do app mobile (mobile/lib/core/theme/app_theme.dart),
+   para web e mobile terem a mesma identidade visual. */
+
+:root,
+:root[data-tema='claro'] {
+  color-scheme: light;
+
+  /* Identidade */
+  --cor-primaria: #198754; /* primary */
+  --cor-primaria-escura: #126a42; /* primaryDark */
+  --cor-primaria-clara: #23a566; /* primaryBright */
+  --cor-destaque: #198754; /* links, foco, item ativo do menu */
+  --cor-destaque-suave: rgba(25, 135, 84, 0.12);
+  --cor-botao: #198754;
+  --cor-botao-hover: #126a42;
+
+  /* Semântica financeira */
+  --cor-receita: #168b55; /* income */
+  --cor-despesa: #d14d4d; /* expense */
+
+  /* Superfícies e texto */
+  --cor-fundo: #f4f7f5; /* lightBackground */
+  --cor-superficie: #ffffff; /* lightSurface */
+  --cor-superficie-variante: #ecf1ee; /* sem equivalente no app (derivada) */
+  --cor-texto: #18201c; /* lightText */
+  --cor-texto-secundario: #58635d; /* lightSecondaryText */
+  --cor-borda-card: #e1e7e3;
+  --cor-borda-campo: #d8e0db;
+
+  /* Forma */
+  --raio-card: 18px;
+  --raio-campo: 14px;
+  --raio-botao: 14px;
+}
+
+:root[data-tema='escuro'] {
+  color-scheme: dark;
+
+  --cor-destaque: #23a566; /* no tema escuro o app usa primaryBright */
+  --cor-destaque-suave: rgba(35, 165, 102, 0.18);
+  --cor-botao: #198754;
+  --cor-botao-hover: #23a566;
+
+  --cor-fundo: #101412; /* darkBackground */
+  --cor-superficie: #191e1b; /* darkSurface */
+  --cor-superficie-variante: #222824; /* darkSurfaceVariant */
+  --cor-texto: #f1f5f2; /* darkText */
+  --cor-texto-secundario: #b2bdb6; /* darkSecondaryText */
+  --cor-borda-card: #29312c;
+  --cor-borda-campo: #343d37;
+}

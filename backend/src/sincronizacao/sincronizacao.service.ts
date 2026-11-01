@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EnviarSincronizacaoDto } from './dto/enviar-sincronizacao.dto';
 import { GanhoSincronizadoDto } from './dto/ganho-sincronizado.dto';
 import { DespesaSincronizadaDto } from './dto/despesa-sincronizada.dto';
 import { JornadaSincronizadaDto } from './dto/jornada-sincronizada.dto';
 import { ExclusaoSincronizadaDto } from './dto/exclusao-sincronizada.dto';
+import { VeiculoSincronizadoDto } from './dto/veiculo-sincronizado.dto';
+import { PlataformaSincronizadaDto } from './dto/plataforma-sincronizada.dto';
 
 // Tolerância para diferença de relógio entre o celular e o servidor
 const TOLERANCIA_MS = 5 * 60 * 1000;
@@ -171,6 +174,18 @@ export class SincronizacaoService {
       if (error instanceof ErroItem) {
         return { entidade, id, status: 'erro', codigo: error.codigo, motivo: error.message };
       }
+      // Erros do banco que se repetiriam sempre: não adianta o app tentar de novo
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        const conhecidos: Record<string, { codigo: string; motivo: string }> = {
+          P2002: { codigo: 'CONFLITO', motivo: 'Já existe um registro com esses dados' },
+          P2000: { codigo: 'VALIDACAO', motivo: 'Algum campo excede o tamanho permitido' },
+          P2003: { codigo: 'NAO_ENCONTRADO', motivo: 'Registro relacionado não encontrado' },
+        };
+        const conhecido = conhecidos[error.code];
+        if (conhecido) {
+          return { entidade, id, status: 'erro', ...conhecido };
+        }
+      }
       this.logger.error(
         `Falha ao sincronizar ${entidade} ${id}`,
         error instanceof Error ? error.stack : String(error),
@@ -183,6 +198,155 @@ export class SincronizacaoService {
         motivo: 'Falha inesperada ao processar o item',
       };
     }
+  }
+
+  // ---------- veículo ----------
+
+  private async sincronizarVeiculo(
+    usuarioId: string,
+    item: VeiculoSincronizadoDto,
+  ): Promise<ResultadoItem> {
+    const existente = await this.prisma.veiculo.findUnique({
+      where: { id_veiculo: item.id_veiculo },
+    });
+    if (existente && existente.id_usuario !== usuarioId) {
+      throw new ErroItem('VALIDACAO', 'Identificador inválido');
+    }
+
+    const atualizadoEm = this.lerAtualizadoEm(item.atualizado_em);
+    if (existente) {
+      const ignorado = this.versaoIgnorada(existente.data_atualizacao, atualizadoEm);
+      if (ignorado) return ignorado;
+    }
+
+    const marca = item.marca.trim();
+    const modelo = item.modelo.trim();
+    const combustivel = item.combustivel.trim();
+    const placa = item.placa?.trim() || null;
+    if (!marca || !modelo || !combustivel) {
+      throw new ErroItem('VALIDACAO', 'Marca, modelo e combustível são obrigatórios');
+    }
+
+    // A placa é única no sistema
+    if (placa) {
+      const placaEmUso = await this.prisma.veiculo.findFirst({
+        where: { placa, id_veiculo: { not: item.id_veiculo } },
+      });
+      if (placaEmUso) {
+        throw new ErroItem('CONFLITO', 'Já existe um veículo cadastrado com essa placa');
+      }
+    }
+
+    // Veículo inativo nunca é o principal (mesma regra da exclusão pela API)
+    const principal = item.ativo && item.principal;
+
+    const dados = {
+      marca,
+      modelo,
+      ano: item.ano,
+      combustivel,
+      consumo_medio: item.consumo_medio,
+      placa,
+      ativo: item.ativo,
+      principal,
+      data_atualizacao: atualizadoEm,
+    };
+
+    // Só pode haver um veículo principal por usuário. Tudo na mesma transação:
+    // se a gravação falhar, o principal anterior não se perde.
+    const operacoes: Prisma.PrismaPromise<unknown>[] = [];
+    if (principal) {
+      operacoes.push(
+        this.prisma.veiculo.updateMany({
+          where: {
+            id_usuario: usuarioId,
+            id_veiculo: { not: item.id_veiculo },
+            principal: true,
+          },
+          data: { principal: false },
+        }),
+      );
+    }
+    if (existente) {
+      operacoes.push(
+        this.prisma.veiculo.update({ where: { id_veiculo: item.id_veiculo }, data: dados }),
+      );
+    } else {
+      operacoes.push(
+        this.prisma.veiculo.create({
+          data: { id_veiculo: item.id_veiculo, id_usuario: usuarioId, ...dados },
+        }),
+      );
+    }
+    await this.prisma.$transaction(operacoes);
+
+    return { status: 'ok', acao: existente ? 'atualizado' : 'criado' };
+  }
+
+  // ---------- plataforma ----------
+
+  private async sincronizarPlataforma(
+    usuarioId: string,
+    item: PlataformaSincronizadaDto,
+  ): Promise<ResultadoItem> {
+    const existente = await this.prisma.plataforma.findUnique({
+      where: { id_plataforma: item.id_plataforma },
+    });
+    if (existente && existente.id_usuario !== usuarioId) {
+      throw new ErroItem('VALIDACAO', 'Identificador inválido');
+    }
+
+    const atualizadoEm = this.lerAtualizadoEm(item.atualizado_em);
+    if (existente) {
+      const ignorado = this.versaoIgnorada(existente.data_atualizacao, atualizadoEm);
+      if (ignorado) return ignorado;
+    }
+
+    const nome = item.nome.trim();
+    if (!nome) {
+      throw new ErroItem('VALIDACAO', 'O nome da plataforma é obrigatório');
+    }
+
+    // Plataforma padrão do sistema: só pode ser ativada/inativada (o nome não muda)
+    if (existente?.padrao) {
+      await this.prisma.plataforma.update({
+        where: { id_plataforma: item.id_plataforma },
+        data: { ativa: item.ativa, data_atualizacao: atualizadoEm },
+      });
+      return { status: 'ok', acao: 'atualizado' };
+    }
+
+    // Nome único por usuário (sem diferenciar maiúsculas de minúsculas)
+    const duplicada = await this.prisma.plataforma.findFirst({
+      where: {
+        id_usuario: usuarioId,
+        nome: { equals: nome, mode: 'insensitive' },
+        id_plataforma: { not: item.id_plataforma },
+      },
+    });
+    if (duplicada) {
+      throw new ErroItem('CONFLITO', 'Já existe uma plataforma com esse nome');
+    }
+
+    if (existente) {
+      await this.prisma.plataforma.update({
+        where: { id_plataforma: item.id_plataforma },
+        data: { nome, ativa: item.ativa, data_atualizacao: atualizadoEm },
+      });
+      return { status: 'ok', acao: 'atualizado' };
+    }
+
+    await this.prisma.plataforma.create({
+      data: {
+        id_plataforma: item.id_plataforma,
+        id_usuario: usuarioId,
+        nome,
+        ativa: item.ativa,
+        padrao: false,
+        data_atualizacao: atualizadoEm,
+      },
+    });
+    return { status: 'ok', acao: 'criado' };
   }
 
   // ---------- ganho ----------
@@ -365,6 +529,28 @@ export class SincronizacaoService {
 
   async enviar(usuarioId: string, dto: EnviarSincronizacaoDto) {
     const resultados: Resultado[] = [];
+
+    // Ordem: veículos e plataformas primeiro, pra um lançamento poder referenciar
+    // um veículo/plataforma criado offline no mesmo lote
+    for (const bruto of dto.veiculos ?? []) {
+      resultados.push(
+        await this.processar('veiculo', bruto, 'id_veiculo', VeiculoSincronizadoDto, (item) =>
+          this.sincronizarVeiculo(usuarioId, item),
+        ),
+      );
+    }
+
+    for (const bruto of dto.plataformas ?? []) {
+      resultados.push(
+        await this.processar(
+          'plataforma',
+          bruto,
+          'id_plataforma',
+          PlataformaSincronizadaDto,
+          (item) => this.sincronizarPlataforma(usuarioId, item),
+        ),
+      );
+    }
 
     for (const bruto of dto.ganhos ?? []) {
       resultados.push(

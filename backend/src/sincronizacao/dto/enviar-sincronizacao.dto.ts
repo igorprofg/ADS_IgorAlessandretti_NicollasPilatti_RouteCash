@@ -6,6 +6,18 @@ import { ArrayMaxSize, IsArray, IsObject, IsOptional } from 'class-validator';
 export class EnviarSincronizacaoDto {
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(50, { message: 'Envie no máximo 50 veículos por chamada' })
+  @IsObject({ each: true })
+  veiculos?: Record<string, unknown>[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50, { message: 'Envie no máximo 50 plataformas por chamada' })
+  @IsObject({ each: true })
+  plataformas?: Record<string, unknown>[];
+
+  @IsOptional()
+  @IsArray()
   @ArrayMaxSize(50, { message: 'Envie no máximo 50 ganhos por chamada' })
   @IsObject({ each: true })
   ganhos?: Record<string, unknown>[];

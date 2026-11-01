@@ -1,0 +1,106 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  font-family: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 8px;
+  line-height: 1.25;
+}
+
+p {
+  margin: 0 0 12px;
+}
+
+a {
+  color: var(--cor-destaque);
+}
+
+.texto-secundario {
+  color: var(--cor-texto-secundario);
+}
+
+.receita {
+  color: var(--cor-receita);
+  font-weight: 600;
+}
+
+.despesa {
+  color: var(--cor-despesa);
+  font-weight: 600;
+}
+
+/* Card: sem sombra, borda fina e cantos arredondados (igual ao CardTheme do app) */
+.card {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda-card);
+  border-radius: var(--raio-card);
+  padding: 24px;
+}
+
+/* Campo de texto (InputDecorationTheme do app) */
+.campo {
+  width: 100%;
+  padding: 14px 16px;
+  font: inherit;
+  color: var(--cor-texto);
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda-campo);
+  border-radius: var(--raio-campo);
+  outline: none;
+}
+
+.campo:focus {
+  border-color: var(--cor-destaque);
+  box-shadow: 0 0 0 0.5px var(--cor-destaque);
+}
+
+/* Botão primário (FilledButtonTheme do app) */
+.botao {
+  padding: 15px 20px;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--cor-botao);
+  border: none;
+  border-radius: var(--raio-botao);
+  cursor: pointer;
+}
+
+.botao:hover {
+  background: var(--cor-botao-hover);
+}
+
+.botao:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pagina-centralizada {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.pagina-centralizada .card {
+  width: min(100%, 420px);
+}
