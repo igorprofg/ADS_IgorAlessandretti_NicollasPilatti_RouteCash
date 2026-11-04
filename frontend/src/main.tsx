@@ -1,15 +1,21 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { AutenticacaoProvedor } from './contextos/AutenticacaoContexto';
+import { aplicarTemaInicial } from './utilitarios/tema';
 import './estilos/tema.css';
 import './estilos/global.css';
 
-// Segue o tema do sistema (claro/escuro), como no app mobile
-const escuro = window.matchMedia('(prefers-color-scheme: dark)').matches;
-document.documentElement.dataset.tema = escuro ? 'escuro' : 'claro';
+// Aplica o tema salvo no localStorage ou o padrão do sistema operacional
+aplicarTemaInicial();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <AutenticacaoProvedor>
+        <App />
+      </AutenticacaoProvedor>
+    </BrowserRouter>
   </StrictMode>,
 );

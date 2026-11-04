@@ -28,6 +28,13 @@
   --cor-borda-card: #e1e7e3;
   --cor-borda-campo: #d8e0db;
 
+  /* Card verde do resumo financeiro (mesmo gradiente do app mobile) */
+  --cor-card-resumo-inicio: #126a42; /* primaryDark */
+  --cor-card-resumo-fim: #23a566; /* primaryBright */
+  --cor-card-texto-suave: #e7fff0; /* greenCardTextSoft */
+  --cor-card-rotulo: #ddf5e6; /* greenCardLabel */
+  --cor-negativo-sobre-verde: #ffe1e1; /* negativeOnGreen */
+
   /* Forma */
   --raio-card: 18px;
   --raio-campo: 14px;

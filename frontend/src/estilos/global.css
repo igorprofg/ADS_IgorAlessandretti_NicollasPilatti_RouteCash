@@ -104,3 +104,61 @@ a {
 .pagina-centralizada .card {
   width: min(100%, 420px);
 }
+
+/* ---------- Formulários e mensagens ---------- */
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.grupo-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rotulo {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--cor-texto-secundario);
+}
+
+.opcao-caixa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.botao-largo {
+  width: 100%;
+}
+
+.texto-centro {
+  margin-top: 20px;
+  margin-bottom: 0;
+  text-align: center;
+}
+
+.mensagem-erro,
+.mensagem-sucesso {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  border-radius: var(--raio-campo);
+}
+
+.mensagem-erro {
+  color: var(--cor-despesa);
+  background: rgba(209, 77, 77, 0.12);
+  border: 1px solid rgba(209, 77, 77, 0.35);
+}
+
+.mensagem-sucesso {
+  color: var(--cor-receita);
+  background: rgba(22, 139, 85, 0.12);
+  border: 1px solid rgba(22, 139, 85, 0.35);
+}
