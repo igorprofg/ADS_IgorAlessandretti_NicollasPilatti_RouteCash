@@ -58,10 +58,30 @@ export default function Cadastro() {
   return (
     <main className="pagina-centralizada">
       <section className="card">
-        <h1>Criar conta</h1>
-        <p className="texto-secundario">
-          Cadastre-se para controlar seus ganhos e despesas.
-        </p>
+  <div
+    style={{
+      borderRadius: '12px',
+      padding: '8px',
+      marginBottom: '20px',
+    }}
+  >
+    <img
+      src="/logo-routecash.png"
+      alt="RouteCash"
+      style={{
+        display: 'block',
+        width: '100%',
+        maxWidth: '320px',
+        height: 'auto',
+        margin: '0 auto',
+      }}
+    />
+  </div>
+
+  <h1>Criar conta</h1>
+  <p className="texto-secundario">
+    Cadastre-se para controlar seus ganhos e despesas.
+  </p>
 
         {erro && (
           <p className="mensagem-erro" role="alert">

@@ -98,6 +98,36 @@ npm run build
 - O tema é inicializado por meio da função `aplicarTemaInicial()`, localizada em `src/utilitarios/tema.ts`.
 - A inicialização da aplicação mantém o `BrowserRouter` e o `AutenticacaoProvedor` no `main.tsx`.
 
+### 06/11/2026 - Igor — Implementação do Dashboard e identidade visual do frontend
+
+**O que foi feito:**
+- Implementação do Dashboard integrado ao backend para apresentação dos indicadores financeiros do usuário.
+- Criação dos filtros de período, permitindo consultar os indicadores de hoje, últimos 7 dias, mês atual e período personalizado.
+- Implementação dos cards de resumo financeiro, apresentando faturamento, despesas e lucro líquido.
+- Implementação dos indicadores de horas trabalhadas, quilômetros rodados, ganho por hora, ganho por quilômetro e custo por quilômetro.
+- Desenvolvimento dos gráficos de faturamento versus despesas por dia e evolução do lucro acumulado.
+- Criação dos componentes, serviços, tipos, hooks e utilitários necessários para o funcionamento do Dashboard.
+- Aplicação da identidade visual do RouteCash nas telas de login, cadastro e cabeçalho principal, utilizando o logotipo do projeto.
+- Ajustes de estilização do cabeçalho e da imagem da marca.
+- Realização de testes de navegação, filtros de período, autenticação e isolamento dos dados entre usuários.
+- Execução do comando `npm run build`, com compilação bem-sucedida do frontend.
+
+**Próximos passos:**
+- Prosseguir com a implementação das próximas funcionalidades previstas no cronograma e no DVP.
+- Desenvolver as telas de retaguarda web para consulta e acompanhamento das informações registradas pelo aplicativo mobile.
+- Continuar os testes de integração entre frontend, backend e mobile.
+
+**Dificuldades:**
+- Ajustes de dimensionamento e alinhamento do logotipo no cabeçalho.
+- Adequação da identidade visual da marca aos temas claro e escuro.
+
+**Observações:**
+- O Dashboard (RF10) foi implementado e integrado ao backend.
+- Foram realizados testes com diferentes usuários para verificar a separação dos dados apresentados.
+- O frontend web possui finalidade de retaguarda e visualização, enquanto as operações diárias do motorista são destinadas principalmente ao aplicativo mobile.
+- O build de produção foi concluído com sucesso. Foi apresentado apenas um aviso do Vite referente ao tamanho de um dos arquivos JavaScript gerados, sem impedir a compilação.
+
+
 <!-- Próxima entrada: copiar o modelo abaixo -->
 
 <!--

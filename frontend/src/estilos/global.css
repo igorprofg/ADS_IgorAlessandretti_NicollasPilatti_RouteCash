@@ -19,6 +19,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.cabecalho-marca {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.cabecalho-logo {
+  display: block;
+  width: 150px;
+  height: auto;
+  object-fit: contain;
+}
+
 h1,
 h2,
 h3 {

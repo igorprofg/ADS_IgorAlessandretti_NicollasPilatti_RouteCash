@@ -20,7 +20,13 @@ export default function Cabecalho({ aoAlternarMenu }: CabecalhoProps) {
         ☰
       </button>
 
-      <span className="cabecalho-marca">RouteCash</span>
+     <a href="/dashboard" className="cabecalho-marca">
+    <img
+      src="/logo-routecash.png"
+      alt="RouteCash"
+      className="cabecalho-logo"
+    />
+  </a>
 
       <div className="cabecalho-acoes">
         <button
