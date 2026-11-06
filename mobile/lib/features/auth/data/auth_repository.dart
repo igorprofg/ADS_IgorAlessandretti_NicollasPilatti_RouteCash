@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/database/app_database.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/secure_storage.dart';
 import 'login_request.dart';
@@ -22,6 +23,10 @@ class AuthRepository {
       );
 
       await SecureStorage.saveToken(loginResponse.accessToken);
+
+      // Define qual banco SQLite
+      // pertence ao usuário autenticado.
+      await AppDatabase.instance.useUser(loginResponse.usuario.idUsuario);
 
       return loginResponse;
     } on DioException catch (e) {

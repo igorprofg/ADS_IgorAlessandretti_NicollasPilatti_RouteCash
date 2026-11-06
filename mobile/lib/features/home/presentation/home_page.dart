@@ -30,6 +30,7 @@ import '../../journeys/presentation/journey_page.dart';
 import '../../journeys/providers/journey_providers.dart';
 
 import '../../sync/providers/sync_providers.dart';
+import '../../../core/database/app_database.dart';
 
 enum _PeriodType { day, week, month, year }
 
@@ -904,9 +905,23 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _sair() async {
-    await SecureStorage.deleteToken();
+    // Interrompe o AutoSync da sessão atual.
+    ref.invalidate(syncAutoServiceProvider);
 
-    if (!mounted) return;
+    // Cancela a escuta da Home atual.
+    await _syncSubscription?.cancel();
+    _syncSubscription = null;
+
+    // Fecha o SQLite do usuário atual,
+    // mas NÃO apaga o arquivo.
+    await AppDatabase.instance.releaseUser();
+
+    // Remove token e identificação da sessão.
+    await SecureStorage.clearSession();
+
+    if (!mounted) {
+      return;
+    }
 
     Navigator.pushAndRemoveUntil(
       context,

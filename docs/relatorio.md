@@ -745,6 +745,49 @@ mobile/lib/features/home/presentation/home_page.dart
 **Observações:**
 - O backend está inteiramente estável, testado e validado. O setup do frontend encontra-se pronto e operando perfeitamente para receber o desenvolvimento das telas e fluxos de usuário.
 
+### 06/11/2026 — Nicollas Pilatti — Isolamento de dados locais por usuário
+
+**O que foi feito:**
+- Investigado problema em que uma conta nova do mobile exibia ganhos, despesas, jornadas e pendências pertencentes a outra conta.
+- Confirmado que o problema estava relacionado ao uso de um único arquivo SQLite (`route_cash.db`) para todos os usuários do aplicativo.
+- Definida a estratégia de utilizar um banco SQLite separado para cada usuário, utilizando o `id_usuario` no nome do arquivo.
+- Ajustado o `AppDatabase` para abrir e fechar o banco correspondente ao usuário autenticado.
+- Adicionado controle do usuário ativo no banco local.
+- Definido o fechamento do banco atual no logout sem apagar os dados offline armazenados.
+- Ajustado o fluxo de autenticação para utilizar o `id_usuario` retornado pelo login e selecionar o banco SQLite correto.
+- Adicionado armazenamento do `id_usuario` junto com o token de autenticação no `SecureStorage`.
+- Ajustado o logout para encerrar a sessão local, fechar o banco do usuário atual e impedir reutilização dos dados por outra conta.
+- Revisado o fluxo do `AutoSync` para evitar que uma sincronização da conta anterior continue ativa após o logout.
+- Validado que a reinstalação do aplicativo removeu os dados locais antigos e eliminou temporariamente o problema, confirmando a origem no SQLite local compartilhado.
+
+**Arquivos modificados:**
+```text
+mobile/lib/core/database/app_database.dart
+mobile/lib/core/storage/secure_storage.dart
+mobile/lib/features/auth/data/auth_repository.dart
+mobile/lib/features/home/presentation/home_page.dart
+```
+
+**Próximos passos:**
+- Finalizar a validação do novo fluxo de login e logout com bancos separados por usuário.
+- Testar troca entre duas contas diferentes sem compartilhamento de ganhos, despesas, jornadas ou pendências.
+- Confirmar que a `sync_outbox` permanece isolada por usuário.
+- Ajustar posteriormente a inicialização do aplicativo para reabrir automaticamente o banco correto através do `id_usuario` salvo no `SecureStorage`.
+- Validar o funcionamento do aplicativo offline após fechar e abrir novamente o app.
+- Executar `flutter analyze` e corrigir eventuais avisos restantes.
+
+**Dificuldades:**
+- O aplicativo utilizava um único banco SQLite para todas as contas, fazendo com que dados locais permanecessem disponíveis após trocar de usuário.
+- Foi necessário separar o conceito de sessão autenticada do armazenamento local, garantindo que cada usuário tenha seu próprio banco.
+- O `SecureStorage` originalmente armazenava somente o token, sendo necessário incluir também o `id_usuario`.
+
+**Observações:**
+- O banco PostgreSQL utilizado por cada desenvolvedor continua sendo local e independente, não sendo sincronizado pelo Git.
+- O problema tratado nesta etapa é exclusivamente o isolamento dos dados locais do aplicativo mobile.
+- A nova estrutura deverá utilizar arquivos no formato `route_cash_<id_usuario>.db`.
+- O logout não deverá apagar o banco do usuário, apenas fechá-lo e remover a sessão ativa, preservando o funcionamento offline.
+
+
 
 
 
