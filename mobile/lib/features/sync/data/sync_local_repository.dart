@@ -232,6 +232,38 @@ class SyncLocalRepository {
   // LOCAL BUSINESS DATA
   // ------------------------------------------------------------
 
+  Future<void> _upsertVeiculoCacheTxn(
+    DatabaseExecutor db,
+    Map<String, dynamic> payload,
+  ) async {
+    await db.insert(DatabaseTables.veiculosCache, {
+      'id_veiculo': payload['id_veiculo'].toString(),
+      'marca': payload['marca']?.toString() ?? '',
+      'modelo': payload['modelo']?.toString() ?? '',
+      'placa': payload['placa']?.toString(),
+      'ativo': _boolToInt(payload['ativo']),
+      'principal': _boolToInt(payload['principal']),
+      'raw_json': jsonEncode(payload),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> _upsertPlataformaCacheTxn(
+    DatabaseExecutor db,
+    Map<String, dynamic> payload,
+  ) async {
+    await db.insert(
+      DatabaseTables.plataformasCache,
+      {
+        'id_plataforma': payload['id_plataforma'].toString(),
+        'nome': payload['nome']?.toString() ?? '',
+        'ativa': _boolToInt(payload['ativa']),
+        'padrao': _boolToInt(payload['padrao']),
+        'raw_json': jsonEncode(payload),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   Future<void> upsertGanho(Map<String, dynamic> payload) async {
     final db = await _db;
 
@@ -280,11 +312,27 @@ class SyncLocalRepository {
     );
   }
 
+  Future<void> upsertVeiculo(Map<String, dynamic> payload) async {
+    final db = await _db;
+
+    await _upsertVeiculoCacheTxn(db, payload);
+  }
+
+  Future<void> upsertPlataforma(Map<String, dynamic> payload) async {
+    final db = await _db;
+
+    await _upsertPlataformaCacheTxn(db, payload);
+  }
+
   // ------------------------------------------------------------
   // SNAPSHOT / RECONCILIATION
   // ------------------------------------------------------------
 
   Future<void> reconcileSnapshot(SyncSnapshot snapshot) async {
+    final pendingVehicles = await pendingRecordIds(entidade: 'veiculo');
+
+    final pendingPlatforms = await pendingRecordIds(entidade: 'plataforma');
+
     final pendingGains = await pendingRecordIds(entidade: 'ganho');
 
     final pendingExpenses = await pendingRecordIds(entidade: 'despesa');
@@ -294,7 +342,11 @@ class SyncLocalRepository {
     final db = await _db;
 
     await db.transaction((txn) async {
-      await _replaceCaches(txn, snapshot);
+      await _reconcileVehicles(txn, snapshot.veiculos, pendingVehicles);
+
+      await _reconcilePlatforms(txn, snapshot.plataformas, pendingPlatforms);
+
+      await _replaceCategories(txn, snapshot);
 
       await _reconcileGains(
         txn,
@@ -317,6 +369,127 @@ class SyncLocalRepository {
         snapshot.sincronizadoEm,
       );
     });
+  }
+
+  Future<void> _reconcileVehicles(
+    DatabaseExecutor txn,
+    List<Map<String, dynamic>> serverItems,
+    Set<String> protectedIds,
+  ) async {
+    final serverIds = <String>{};
+
+    for (final item in serverItems) {
+      final id = item['id_veiculo'].toString();
+
+      serverIds.add(id);
+
+      if (protectedIds.contains(id)) {
+        continue;
+      }
+
+      await _upsertVeiculoCacheTxn(txn, item);
+    }
+
+    final localRows = await txn.query(
+      DatabaseTables.veiculosCache,
+      columns: ['id_veiculo'],
+    );
+
+    for (final row in localRows) {
+      final id = row['id_veiculo'].toString();
+
+      if (!serverIds.contains(id) && !protectedIds.contains(id)) {
+        await txn.delete(
+          DatabaseTables.veiculosCache,
+          where: 'id_veiculo = ?',
+          whereArgs: [id],
+        );
+      }
+    }
+
+    // Se existe um principal local ainda
+    // pendente, evita exibir dois principais
+    // durante a reconciliação.
+    final principalRows = await txn.query(
+      DatabaseTables.veiculosCache,
+      columns: ['id_veiculo'],
+      where: 'principal = ? AND ativo = ?',
+      whereArgs: [1, 1],
+    );
+
+    final protectedPrincipalIds = principalRows
+        .map((row) => row['id_veiculo'].toString())
+        .where(protectedIds.contains)
+        .toSet();
+
+    if (protectedPrincipalIds.isNotEmpty) {
+      final placeholders = List.filled(
+        protectedPrincipalIds.length,
+        '?',
+      ).join(',');
+
+      await txn.rawUpdate('''
+      UPDATE ${DatabaseTables.veiculosCache}
+      SET principal = 0
+      WHERE id_veiculo NOT IN ($placeholders)
+      ''', protectedPrincipalIds.toList());
+    }
+  }
+
+  Future<void> _reconcilePlatforms(
+    DatabaseExecutor txn,
+    List<Map<String, dynamic>> serverItems,
+    Set<String> protectedIds,
+  ) async {
+    final serverIds = <String>{};
+
+    for (final item in serverItems) {
+      final id = item['id_plataforma'].toString();
+
+      serverIds.add(id);
+
+      if (protectedIds.contains(id)) {
+        continue;
+      }
+
+      await _upsertPlataformaCacheTxn(txn, item);
+    }
+
+    final localRows = await txn.query(
+      DatabaseTables.plataformasCache,
+      columns: ['id_plataforma'],
+    );
+
+    for (final row in localRows) {
+      final id = row['id_plataforma'].toString();
+
+      if (!serverIds.contains(id) && !protectedIds.contains(id)) {
+        await txn.delete(
+          DatabaseTables.plataformasCache,
+          where: 'id_plataforma = ?',
+          whereArgs: [id],
+        );
+      }
+    }
+  }
+
+  Future<void> _replaceCategories(
+    DatabaseExecutor txn,
+    SyncSnapshot snapshot,
+  ) async {
+    await txn.delete(DatabaseTables.categoriasCache);
+
+    for (final item in snapshot.categoriasDespesa) {
+      await txn.insert(
+        DatabaseTables.categoriasCache,
+        {
+          'id_categoria': item['id_categoria'].toString(),
+          'nome': item['nome']?.toString() ?? '',
+          'raw_json': jsonEncode(item),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
   }
 
   Future<void> _replaceCaches(

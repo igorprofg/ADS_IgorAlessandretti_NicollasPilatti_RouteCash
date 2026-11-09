@@ -51,7 +51,9 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
 
       _combustivelController.text = vehicle.combustivel;
 
-      _consumoController.text = vehicle.consumoMedio.toString();
+      _consumoController.text = vehicle.consumoMedio
+          .toStringAsFixed(2)
+          .replaceAll('.', ',');
 
       _placaController.text = vehicle.placa ?? '';
     }
@@ -70,16 +72,99 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
   }
 
   String? _normalizarPlaca(String value) {
-    final normalizada = value.trim().toUpperCase().replaceAll(
-      RegExp(r'[^A-Z0-9]'),
-      '',
-    );
+    final normalizada = value.trim().toUpperCase();
 
     if (normalizada.isEmpty) {
       return null;
     }
 
     return normalizada;
+  }
+
+  String? _validarMarca(String? value) {
+    final texto = value?.trim() ?? '';
+
+    if (texto.isEmpty) {
+      return 'Informe a marca.';
+    }
+
+    if (texto.length > 50) {
+      return 'A marca deve ter no máximo 50 caracteres.';
+    }
+
+    return null;
+  }
+
+  String? _validarModelo(String? value) {
+    final texto = value?.trim() ?? '';
+
+    if (texto.isEmpty) {
+      return 'Informe o modelo.';
+    }
+
+    if (texto.length > 50) {
+      return 'O modelo deve ter no máximo 50 caracteres.';
+    }
+
+    return null;
+  }
+
+  String? _validarAno(String? value) {
+    final ano = int.tryParse(value?.trim() ?? '');
+
+    if (ano == null) {
+      return 'Informe um ano válido.';
+    }
+
+    if (ano < 1950 || ano > 2100) {
+      return 'O ano deve estar entre 1950 e 2100.';
+    }
+
+    return null;
+  }
+
+  String? _validarCombustivel(String? value) {
+    final texto = value?.trim() ?? '';
+
+    if (texto.isEmpty) {
+      return 'Informe o combustível.';
+    }
+
+    if (texto.length > 30) {
+      return 'O combustível deve ter no máximo 30 caracteres.';
+    }
+
+    return null;
+  }
+
+  String? _validarConsumo(String? value) {
+    final texto = (value ?? '').trim().replaceAll(',', '.');
+
+    if (texto.isEmpty) {
+      return 'Informe o consumo médio.';
+    }
+
+    final formato = RegExp(r'^\d+(\.\d{1,2})?$');
+
+    if (!formato.hasMatch(texto)) {
+      return 'Use um número com no máximo 2 casas decimais.';
+    }
+
+    final consumo = double.tryParse(texto);
+
+    if (consumo == null) {
+      return 'Informe um consumo válido.';
+    }
+
+    if (consumo <= 0) {
+      return 'O consumo deve ser maior que zero.';
+    }
+
+    if (consumo > 999.99) {
+      return 'O consumo deve ser no máximo 999,99.';
+    }
+
+    return null;
   }
 
   String? _validarPlaca(String? value) {
@@ -89,14 +174,8 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
       return null;
     }
 
-    if (placa.length != 7) {
-      return 'A placa deve possuir 7 caracteres.';
-    }
-
-    final formatoBrasileiro = RegExp(r'^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$');
-
-    if (!formatoBrasileiro.hasMatch(placa)) {
-      return 'Informe uma placa válida.';
+    if (placa.length > 10) {
+      return 'A placa deve ter no máximo 10 caracteres.';
     }
 
     return null;
@@ -170,7 +249,9 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
           ),
         );
 
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         Navigator.pop(context, true);
 
@@ -189,11 +270,15 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
           ),
         );
 
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         Navigator.pop(context, true);
       } on InactiveVehicleConflict catch (e) {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         setState(() {
           _salvando = false;
@@ -211,7 +296,9 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
 
         await repository.reactivate(e.vehicleId);
 
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Veículo reativado com sucesso.')),
@@ -220,7 +307,9 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
@@ -236,6 +325,8 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_editando ? 'Editar veículo' : 'Novo veículo'),
@@ -254,7 +345,7 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
 
@@ -262,44 +353,39 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
 
               TextFormField(
                 controller: _marcaController,
+                enabled: !_salvando,
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.words,
+                inputFormatters: [LengthLimitingTextInputFormatter(50)],
                 decoration: const InputDecoration(
                   labelText: 'Marca',
                   prefixIcon: Icon(Icons.directions_car_outlined),
+                  border: OutlineInputBorder(),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Informe a marca.';
-                  }
-
-                  return null;
-                },
+                validator: _validarMarca,
               ),
 
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _modeloController,
+                enabled: !_salvando,
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.words,
+                inputFormatters: [LengthLimitingTextInputFormatter(50)],
                 decoration: const InputDecoration(
                   labelText: 'Modelo',
                   prefixIcon: Icon(Icons.car_rental_outlined),
+                  border: OutlineInputBorder(),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Informe o modelo.';
-                  }
-
-                  return null;
-                },
+                validator: _validarModelo,
               ),
 
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _anoController,
+                enabled: !_salvando,
                 keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.next,
                 inputFormatters: [
@@ -309,87 +395,66 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
                 decoration: const InputDecoration(
                   labelText: 'Ano',
                   prefixIcon: Icon(Icons.calendar_today_outlined),
+                  border: OutlineInputBorder(),
                 ),
-                validator: (value) {
-                  final ano = int.tryParse(value?.trim() ?? '');
-
-                  if (ano == null) {
-                    return 'Informe um ano válido.';
-                  }
-
-                  if (ano < 1950) {
-                    return 'Ano inválido.';
-                  }
-
-                  return null;
-                },
+                validator: _validarAno,
               ),
 
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _combustivelController,
+                enabled: !_salvando,
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.sentences,
+                inputFormatters: [LengthLimitingTextInputFormatter(30)],
                 decoration: const InputDecoration(
                   labelText: 'Combustível',
                   prefixIcon: Icon(Icons.local_gas_station_outlined),
+                  border: OutlineInputBorder(),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Informe o combustível.';
-                  }
-
-                  return null;
-                },
+                validator: _validarCombustivel,
               ),
 
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _consumoController,
+                enabled: !_salvando,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
                 textInputAction: TextInputAction.next,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+                ],
                 decoration: const InputDecoration(
                   labelText: 'Consumo médio',
                   suffixText: 'km/l',
                   prefixIcon: Icon(Icons.speed_outlined),
+                  helperText: 'Máximo 999,99',
+                  border: OutlineInputBorder(),
                 ),
-                validator: (value) {
-                  final consumo = double.tryParse(
-                    (value ?? '').replaceAll(',', '.'),
-                  );
-
-                  if (consumo == null) {
-                    return 'Informe um consumo válido.';
-                  }
-
-                  if (consumo < 0.1) {
-                    return 'O consumo deve ser maior que zero.';
-                  }
-
-                  return null;
-                },
+                validator: _validarConsumo,
               ),
 
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _placaController,
+                enabled: !_salvando,
                 textCapitalization: TextCapitalization.characters,
                 textInputAction: TextInputAction.done,
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
-                  LengthLimitingTextInputFormatter(8),
+                  LengthLimitingTextInputFormatter(10),
                   _UpperCaseTextFormatter(),
                 ],
                 decoration: const InputDecoration(
                   labelText: 'Placa (opcional)',
                   hintText: 'ABC1D23',
                   prefixIcon: Icon(Icons.pin_outlined),
-                  helperText: 'Formato antigo ou Mercosul',
+                  helperText: 'Até 10 caracteres',
+                  border: OutlineInputBorder(),
                 ),
                 validator: _validarPlaca,
                 onFieldSubmitted: (_) {
@@ -407,10 +472,7 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Icon(
                         _editando
@@ -423,6 +485,18 @@ class _VehicleFormPageState extends ConsumerState<VehicleFormPage> {
                       : _editando
                       ? 'Salvar alterações'
                       : 'Cadastrar veículo',
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                'As alterações são salvas no aparelho e '
+                'sincronizadas automaticamente quando houver conexão.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],

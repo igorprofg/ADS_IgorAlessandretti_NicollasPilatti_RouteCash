@@ -8,7 +8,7 @@ class AppDatabase {
 
   static final AppDatabase instance = AppDatabase._();
 
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
 
   Database? _database;
   String? _activeUserId;
@@ -81,6 +81,11 @@ class AppDatabase {
         }
 
         await batch.commit(noResult: true);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(DatabaseTables.createUsuarioCacheStatement);
+        }
       },
     );
   }

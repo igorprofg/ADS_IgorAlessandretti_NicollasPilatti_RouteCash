@@ -17,7 +17,12 @@ class VehicleListPage extends ConsumerStatefulWidget {
 class _VehicleListPageState extends ConsumerState<VehicleListPage> {
   List<Vehicle> _vehicles = [];
 
+  Set<String> _pendingIds = {};
+
+  Map<String, String> _attentionReasons = {};
+
   bool _carregando = true;
+
   String? _erro;
 
   @override
@@ -40,14 +45,27 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
 
       final vehicles = await repository.findAll();
 
-      if (!mounted) return;
+      final pendingIds = await repository.pendingIds();
+
+      final attentionReasons = await repository.attentionReasons();
+
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _vehicles = vehicles;
+
+        _pendingIds = pendingIds;
+
+        _attentionReasons = attentionReasons;
+
         _carregando = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _erro = e.toString().replaceFirst('Exception: ', '');
@@ -55,6 +73,14 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
         _carregando = false;
       });
     }
+  }
+
+  Future<void> _sincronizarECarregar() async {
+    final repository = ref.read(vehicleRepositoryProvider);
+
+    await repository.trySync();
+
+    await _carregar();
   }
 
   Future<void> _novoVeiculo() async {
@@ -98,7 +124,9 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
 
       final mensagem = await repository.setPrincipal(vehicle.idVeiculo);
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(
         context,
@@ -106,7 +134,9 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
 
       await _carregar();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
@@ -154,7 +184,9 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
 
       final mensagem = await repository.delete(vehicle.idVeiculo);
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(
         context,
@@ -162,7 +194,9 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
 
       await _carregar();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
@@ -176,6 +210,11 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
       appBar: AppBar(
         title: const Text('Meus veículos'),
         actions: [
+          IconButton(
+            onPressed: _sincronizarECarregar,
+            icon: const Icon(Icons.sync),
+            tooltip: 'Sincronizar',
+          ),
           IconButton(
             onPressed: _abrirInativos,
             icon: const Icon(Icons.history),
@@ -195,7 +234,7 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
           : _vehicles.isEmpty
           ? _buildVazio()
           : RefreshIndicator(
-              onRefresh: _carregar,
+              onRefresh: _sincronizarECarregar,
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                 itemCount: _vehicles.length,
@@ -211,6 +250,10 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
 
   Widget _buildVehicleCard(Vehicle vehicle) {
     final theme = Theme.of(context);
+
+    final attentionReason = _attentionReasons[vehicle.idVeiculo];
+
+    final pending = _pendingIds.contains(vehicle.idVeiculo);
 
     return Card(
       child: Padding(
@@ -294,7 +337,8 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
                       ),
                       _VehicleInfo(
                         icon: Icons.speed_outlined,
-                        text: '${vehicle.consumoMedio} km/l',
+                        text:
+                            '${vehicle.consumoMedio.toStringAsFixed(2).replaceAll('.', ',')} km/l',
                       ),
                     ],
                   ),
@@ -314,6 +358,21 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ],
+                    ),
+                  ],
+
+                  if (attentionReason != null) ...[
+                    const SizedBox(height: 12),
+                    _SyncStatusBox(
+                      icon: Icons.warning_amber_rounded,
+                      text: 'Precisa de atenção: $attentionReason',
+                      error: true,
+                    ),
+                  ] else if (pending) ...[
+                    const SizedBox(height: 12),
+                    const _SyncStatusBox(
+                      icon: Icons.cloud_upload_outlined,
+                      text: 'Sincronização pendente',
                     ),
                   ],
                 ],
@@ -381,28 +440,42 @@ class _VehicleListPageState extends ConsumerState<VehicleListPage> {
   }
 
   Widget _buildVazio() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.directions_car_outlined, size: 58),
-            const SizedBox(height: 16),
-            const Text(
-              'Nenhum veículo cadastrado',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              'Cadastre o veículo que você utiliza para começar seus lançamentos.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return RefreshIndicator(
+      onRefresh: _sincronizarECarregar,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.65,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.directions_car_outlined, size: 58),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Nenhum veículo cadastrado',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'Cadastre o veículo que você utiliza para começar seus lançamentos.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -454,6 +527,60 @@ class _VehicleInfo extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SyncStatusBox extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final bool error;
+
+  const _SyncStatusBox({
+    required this.icon,
+    required this.text,
+    this.error = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final foreground = error
+        ? theme.colorScheme.error
+        : theme.colorScheme.primary;
+
+    final background = error
+        ? theme.colorScheme.errorContainer
+        : theme.colorScheme.primaryContainer;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 17, color: foreground),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.3,
+                fontWeight: FontWeight.w600,
+                color: error
+                    ? theme.colorScheme.onErrorContainer
+                    : theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

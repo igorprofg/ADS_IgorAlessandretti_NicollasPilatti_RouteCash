@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/secure_storage.dart';
+
 import 'login_request.dart';
 import 'login_response.dart';
 
@@ -22,11 +23,26 @@ class AuthRepository {
         Map<String, dynamic>.from(response.data),
       );
 
+      final userId = loginResponse.usuario.idUsuario;
+
+      // Salva a sessão para permitir
+      // restauração mesmo sem backend.
       await SecureStorage.saveToken(loginResponse.accessToken);
 
-      // Define qual banco SQLite
-      // pertence ao usuário autenticado.
-      await AppDatabase.instance.useUser(loginResponse.usuario.idUsuario);
+      await SecureStorage.saveUserId(userId);
+
+      try {
+        // Abre o SQLite exclusivo
+        // deste usuário.
+        await AppDatabase.instance.useUser(userId);
+      } catch (_) {
+        // Se por algum motivo não conseguir
+        // abrir o banco local, não mantém
+        // uma sessão incompleta.
+        await SecureStorage.clearSession();
+
+        rethrow;
+      }
 
       return loginResponse;
     } on DioException catch (e) {

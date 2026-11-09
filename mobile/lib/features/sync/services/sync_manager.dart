@@ -9,10 +9,7 @@ class SyncManager {
 
   bool _running = false;
 
-  SyncManager({
-    required this.remoteRepository,
-    required this.localRepository,
-  });
+  SyncManager({required this.remoteRepository, required this.localRepository});
 
   bool get running => _running;
 
@@ -49,21 +46,28 @@ class SyncManager {
     final attempted = <String>{};
 
     while (true) {
-      final pending =
-          await localRepository.findPending();
+      final pending = await localRepository.findPending();
 
       final available = pending
-          .where(
-            (item) =>
-                !attempted.contains(
-                  _key(item),
-                ),
-          )
+          .where((item) => !attempted.contains(_key(item)))
           .toList();
 
       if (available.isEmpty) {
         return;
       }
+
+      // Ordem obrigatória do RF11.
+      final vehicles = _takeEntity(
+        available,
+        entidade: 'veiculo',
+        operacao: 'upsert',
+      );
+
+      final platforms = _takeEntity(
+        available,
+        entidade: 'plataforma',
+        operacao: 'upsert',
+      );
 
       final gains = _takeEntity(
         available,
@@ -83,15 +87,22 @@ class SyncManager {
         operacao: 'upsert',
       );
 
+      // Veículo e plataforma NUNCA entram
+      // em exclusoes.
       final deletions = available
           .where(
             (item) =>
-                item.operacao == 'delete',
+                item.operacao == 'delete' &&
+                (item.entidade == 'ganho' ||
+                    item.entidade == 'despesa' ||
+                    item.entidade == 'jornada'),
           )
           .take(50)
           .toList();
 
-      if (gains.isEmpty &&
+      if (vehicles.isEmpty &&
+          platforms.isEmpty &&
+          gains.isEmpty &&
           expenses.isEmpty &&
           journeys.isEmpty &&
           deletions.isEmpty) {
@@ -99,63 +110,39 @@ class SyncManager {
       }
 
       final sentItems = [
+        ...vehicles,
+        ...platforms,
         ...gains,
         ...expenses,
         ...journeys,
         ...deletions,
       ];
 
-      attempted.addAll(
-        sentItems.map(_key),
-      );
+      attempted.addAll(sentItems.map(_key));
 
-      final results =
-          await remoteRepository.enviar(
-        ganhos: gains
-            .map((item) => item.payload!)
-            .toList(),
-        despesas: expenses
-            .map((item) => item.payload!)
-            .toList(),
-        jornadas: journeys
-            .map((item) => item.payload!)
-            .toList(),
+      final results = await remoteRepository.enviar(
+        veiculos: vehicles.map((item) => item.payload!).toList(),
+        plataformas: platforms.map((item) => item.payload!).toList(),
+        ganhos: gains.map((item) => item.payload!).toList(),
+        despesas: expenses.map((item) => item.payload!).toList(),
+        jornadas: journeys.map((item) => item.payload!).toList(),
         exclusoes: deletions
-            .map(
-              (item) => {
-                'entidade':
-                    item.entidade,
-                'id':
-                    item.registroId,
-              },
-            )
+            .map((item) => {'entidade': item.entidade, 'id': item.registroId})
             .toList(),
       );
 
       for (final result in results) {
-        await _applyResult(
-          result,
-        );
+        await _applyResult(result);
       }
 
-      final processedIds =
-          sentItems.map(_key).toSet();
+      final processedIds = sentItems.map(_key).toSet();
 
       final resultIds = results
-          .where(
-            (result) =>
-                result.id != null,
-          )
-          .map(
-            (result) =>
-                '${result.entidade}:${result.id}',
-          )
+          .where((result) => result.id != null)
+          .map((result) => '${result.entidade}:${result.id}')
           .toSet();
 
-      final missing =
-          processedIds.difference(
-        resultIds,
-      );
+      final missing = processedIds.difference(resultIds);
 
       if (missing.isNotEmpty) {
         throw Exception(
@@ -182,23 +169,19 @@ class SyncManager {
         .toList();
   }
 
-  String _key(
-    SyncOutboxItem item,
-  ) {
-    return '${item.entidade}:${item.registroId}';
+  String _key(SyncOutboxItem item) {
+    return '${item.entidade}:'
+        '${item.registroId}';
   }
 
-  Future<void> _applyResult(
-    SyncItemResult result,
-  ) async {
+  Future<void> _applyResult(SyncItemResult result) async {
     final id = result.id;
 
     if (id == null) {
       return;
     }
 
-    if (result.status == 'ok' ||
-        result.status == 'ignorado') {
+    if (result.status == 'ok' || result.status == 'ignorado') {
       await localRepository.removeOutbox(
         entidade: result.entidade,
         registroId: id,
@@ -217,24 +200,14 @@ class SyncManager {
       return;
     }
 
-    final attentionCodes = {
-      'VALIDACAO',
-      'NAO_ENCONTRADO',
-      'CONFLITO',
-    };
+    const attentionCodes = {'VALIDACAO', 'NAO_ENCONTRADO', 'CONFLITO'};
 
-    if (attentionCodes.contains(
-      result.codigo,
-    )) {
+    if (attentionCodes.contains(result.codigo)) {
       await localRepository.markNeedsAttention(
         entidade: result.entidade,
         registroId: id,
-        codigo:
-            result.codigo ??
-            'ERRO',
-        motivo:
-            result.motivo ??
-            'A sincronização precisa de atenção.',
+        codigo: result.codigo ?? 'ERRO',
+        motivo: result.motivo ?? 'A sincronização precisa de atenção.',
       );
 
       return;
@@ -243,21 +216,14 @@ class SyncManager {
     await localRepository.markNeedsAttention(
       entidade: result.entidade,
       registroId: id,
-      codigo:
-          result.codigo ??
-          'ERRO',
-      motivo:
-          result.motivo ??
-          'Erro não identificado durante a sincronização.',
+      codigo: result.codigo ?? 'ERRO',
+      motivo: result.motivo ?? 'Erro não identificado durante a sincronização.',
     );
   }
 
   Future<void> _downloadAndReconcile() async {
-    final snapshot =
-        await remoteRepository.baixar();
+    final snapshot = await remoteRepository.baixar();
 
-    await localRepository.reconcileSnapshot(
-      snapshot,
-    );
+    await localRepository.reconcileSnapshot(snapshot);
   }
 }

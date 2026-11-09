@@ -7,6 +7,10 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/platform_icon.dart';
 
 import '../../auth/presentation/login_page.dart';
+import '../../../core/security/app_lock_service.dart';
+
+import '../../auth/presentation/app_lock_page.dart';
+import '../../auth/presentation/setup_pin_page.dart';
 
 import '../../earnings/data/earning.dart';
 import '../../earnings/presentation/earning_form_page.dart';
@@ -904,6 +908,56 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
   }
 
+  Future<void> _bloquearApp() async {
+    final service = AppLockService();
+
+    var bloqueioAtivo = await service.isLockEnabled();
+
+    if (!bloqueioAtivo) {
+      if (!mounted) {
+        return;
+      }
+
+      final configurado = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const SetupPinPage()),
+      );
+
+      if (configurado != true || !mounted) {
+        return;
+      }
+
+      bloqueioAtivo = true;
+    }
+
+    if (!bloqueioAtivo) {
+      return;
+    }
+
+    // Encerra apenas os serviços
+    // ligados à tela atual.
+    ref.invalidate(syncAutoServiceProvider);
+
+    await _syncSubscription?.cancel();
+
+    _syncSubscription = null;
+
+    // IMPORTANTE:
+    // não fecha SQLite
+    // não apaga token
+    // não apaga id_usuario
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const AppLockPage()),
+      (_) => false,
+    );
+  }
+
   Future<void> _sair() async {
     // Interrompe o AutoSync da sessão atual.
     ref.invalidate(syncAutoServiceProvider);
@@ -954,6 +1008,10 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       case 'jornadas':
         _abrirJornadas();
+        break;
+
+      case 'bloquear':
+        _bloquearApp();
         break;
 
       case 'sair':
@@ -1036,23 +1094,53 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 72,
-        titleSpacing: 20,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
+        toolbarHeight: 78,
+        titleSpacing: 14,
+        title: Row(
           children: [
-            Text(
-              'Olá, $_primeiroNome',
-              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+            Container(
+              height: 44,
+              width: 112,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Image.asset(
+                'assets/images/route_cash_logo.png',
+                fit: BoxFit.contain,
+              ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              _dataCabecalho,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: theme.colorScheme.onSurfaceVariant,
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Olá, $_primeiroNome',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+
+                  const SizedBox(height: 2),
+
+                  Text(
+                    _dataCabecalho,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1076,6 +1164,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ],
                 ),
               ),
+
               const PopupMenuItem(
                 value: 'ganhos',
                 child: Row(
@@ -1086,6 +1175,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ],
                 ),
               ),
+
               const PopupMenuItem(
                 value: 'despesas',
                 child: Row(
@@ -1107,7 +1197,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ],
                 ),
               ),
+
               const PopupMenuDivider(),
+
               const PopupMenuItem(
                 value: 'veiculos',
                 child: Row(
@@ -1118,6 +1210,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ],
                 ),
               ),
+
               const PopupMenuItem(
                 value: 'plataformas',
                 child: Row(
@@ -1128,7 +1221,22 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ],
                 ),
               ),
+
               const PopupMenuDivider(),
+
+              const PopupMenuItem(
+                value: 'bloquear',
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_outline),
+                    SizedBox(width: 12),
+                    Text('Bloquear app'),
+                  ],
+                ),
+              ),
+
+              const PopupMenuDivider(),
+
               const PopupMenuItem(
                 value: 'sair',
                 child: Row(
@@ -1141,7 +1249,8 @@ class _HomePageState extends ConsumerState<HomePage> {
               ),
             ],
           ),
-          const SizedBox(width: 12),
+
+          const SizedBox(width: 8),
         ],
       ),
       body: _carregando

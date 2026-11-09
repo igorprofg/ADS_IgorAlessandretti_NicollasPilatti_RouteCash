@@ -6,12 +6,16 @@ class SyncRepository {
   final _dio = DioClient.instance;
 
   Future<List<SyncItemResult>> enviar({
+    List<Map<String, dynamic>> veiculos = const [],
+    List<Map<String, dynamic>> plataformas = const [],
     List<Map<String, dynamic>> ganhos = const [],
     List<Map<String, dynamic>> despesas = const [],
     List<Map<String, dynamic>> jornadas = const [],
     List<Map<String, dynamic>> exclusoes = const [],
   }) async {
-    if (ganhos.length > 50 ||
+    if (veiculos.length > 50 ||
+        plataformas.length > 50 ||
+        ganhos.length > 50 ||
         despesas.length > 50 ||
         jornadas.length > 50 ||
         exclusoes.length > 50) {
@@ -19,6 +23,14 @@ class SyncRepository {
     }
 
     final body = <String, dynamic>{};
+
+    if (veiculos.isNotEmpty) {
+      body['veiculos'] = veiculos;
+    }
+
+    if (plataformas.isNotEmpty) {
+      body['plataformas'] = plataformas;
+    }
 
     if (ganhos.isNotEmpty) {
       body['ganhos'] = ganhos;
@@ -173,9 +185,7 @@ class SyncRepository {
 
   String _formatDate(DateTime date) {
     final year = date.year.toString().padLeft(4, '0');
-
     final month = date.month.toString().padLeft(2, '0');
-
     final day = date.day.toString().padLeft(2, '0');
 
     return '$year-$month-$day';

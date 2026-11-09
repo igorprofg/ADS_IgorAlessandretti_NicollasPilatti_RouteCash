@@ -9,7 +9,22 @@ class DatabaseTables {
   static const String plataformasCache = 'plataformas_cache';
   static const String categoriasCache = 'categorias_cache';
 
+  static const String usuarioCache = 'usuario_cache';
+
   static const String syncOutbox = 'sync_outbox';
+
+  static const String createUsuarioCacheStatement =
+      '''
+    CREATE TABLE $usuarioCache (
+      id_usuario TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      email TEXT NOT NULL,
+      tipo_usuario TEXT NOT NULL,
+      status_conta TEXT,
+      atualizado_em TEXT NOT NULL,
+      raw_json TEXT NOT NULL
+    )
+    ''';
 
   static const List<String> createStatements = [
     '''
@@ -76,6 +91,8 @@ class DatabaseTables {
       raw_json TEXT NOT NULL
     )
     ''',
+
+    createUsuarioCacheStatement,
 
     '''
     CREATE TABLE $syncOutbox (
