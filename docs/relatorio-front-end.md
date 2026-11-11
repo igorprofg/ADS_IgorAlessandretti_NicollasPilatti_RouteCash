@@ -127,6 +127,92 @@ npm run build
 - O frontend web possui finalidade de retaguarda e visualização, enquanto as operações diárias do motorista são destinadas principalmente ao aplicativo mobile.
 - O build de produção foi concluído com sucesso. Foi apresentado apenas um aviso do Vite referente ao tamanho de um dos arquivos JavaScript gerados, sem impedir a compilação.
 
+### 11/11/2026 — Igor Alessandretti — Implementação dos RF12, RF13 e RF14 (Frontend)
+
+**O que foi feito:**
+
+- Implementada a interface da funcionalidade RF12 — Visualizar Planos.
+- Desenvolvida a página de listagem dos planos disponíveis no RouteCash.
+- Criados cartões para apresentar as informações dos planos, incluindo nome, valor, período de cobrança e benefícios.
+- Implementada a identificação visual do plano atualmente contratado pelo usuário.
+- Desenvolvida a página de detalhes do plano, permitindo consultar suas informações antes da contratação.
+- Implementada a funcionalidade RF13 — Gerenciar Assinatura.
+- Desenvolvida a interface para contratação de planos, com confirmação antes de concluir a operação.
+- Criada a página de consulta da assinatura atual, apresentando plano contratado, valor, período de cobrança, data de início e vencimento.
+- Implementada a identificação visual da situação da assinatura, incluindo a indicação de vencimento.
+- Desenvolvida a funcionalidade de cancelamento da assinatura com janela de confirmação.
+- Adicionada a atualização das informações após o cancelamento, mantendo o registro da assinatura no histórico.
+- Implementada a visualização do histórico de assinaturas, incluindo plano, datas, situação e data de cancelamento.
+- Implementada a funcionalidade RF14 — Consultar Pagamentos.
+- Desenvolvida a página de histórico de pagamentos, apresentando vencimento, data de pagamento, plano, valor e situação.
+- Adicionada a identificação visual do pagamento mais recente.
+- Criados componentes reutilizáveis para etiquetas de situação, cartões de planos e janelas de confirmação.
+- Integradas as páginas aos serviços responsáveis por consumir os endpoints do backend.
+- Reaproveitados os recursos existentes de autenticação, formatação de datas, formatação de valores monetários, tratamento de erros e tema visual.
+- Adicionados estados de carregamento, mensagens de erro e estados vazios nas páginas.
+
+**Arquivos modificados/criados:**
+
+```text
+frontend/src/tipos/assinaturas.tipos.ts
+
+frontend/src/servicos/planos.servico.ts
+frontend/src/servicos/assinaturas.servico.ts
+frontend/src/servicos/pagamentos.servico.ts
+
+frontend/src/utilitarios/rotulos.ts
+frontend/src/hooks/useCarregar.ts
+
+frontend/src/componentes/comum/comum.css
+frontend/src/componentes/comum/Etiqueta.tsx
+frontend/src/componentes/comum/ModalConfirmacao.tsx
+
+frontend/src/componentes/planos/CartaoPlano.tsx
+
+frontend/src/estilos/assinaturas.css
+
+frontend/src/paginas/planos/Planos.tsx
+frontend/src/paginas/planos/DetalhePlano.tsx
+
+frontend/src/paginas/assinatura/Assinatura.tsx
+
+frontend/src/paginas/pagamentos/Pagamentos.tsx
+
+frontend/src/rotas/Rotas.tsx
+frontend/src/componentes/MenuLateral.tsx
+```
+
+**Próximos passos:**
+
+- Executar os testes das páginas de planos, assinatura e pagamentos no navegador.
+- Verificar se os planos cadastrados no banco são exibidos corretamente.
+- Testar a navegação entre listagem, detalhes e contratação de planos.
+- Validar a confirmação da contratação e a atualização da página de assinatura.
+- Testar o cancelamento da assinatura e verificar a preservação do histórico.
+- Verificar a apresentação dos pagamentos cadastrados pela administração.
+- Testar os estados vazios, mensagens de erro e indicadores de carregamento.
+- Validar o isolamento das informações entre diferentes usuários.
+- Verificar o funcionamento nos temas disponíveis.
+- Executar `npm run build` para verificar a compilação do frontend.
+- Registrar os resultados dos testes e corrigir eventuais problemas encontrados.
+
+**Dificuldades:**
+
+- Foi necessário organizar a comunicação entre as páginas, os serviços de consumo da API e os componentes reutilizáveis.
+- Foi necessário tratar diferentes situações de assinatura, incluindo ativa, suspensa, cancelada e vencida.
+- Foi necessário implementar atualizações das informações após operações de contratação e cancelamento.
+- Foi necessário tratar a ausência de pagamentos registrados, apresentando uma mensagem informativa ao usuário.
+
+**Observações:**
+
+- As informações dos planos, assinaturas e pagamentos são obtidas por meio da API, sem utilização de dados fixos nas páginas.
+- O histórico de pagamentos poderá permanecer vazio até que a administração realize os registros correspondentes, conforme previsto no RF18.
+- A interface de contratação não realiza pagamentos automaticamente.
+- As páginas reutilizam os recursos de autenticação e os padrões visuais já existentes no projeto.
+- Os testes completos do frontend ainda serão realizados.
+
+
+
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 

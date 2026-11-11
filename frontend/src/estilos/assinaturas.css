@@ -1,0 +1,135 @@
+.pagina {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.pagina h1 {
+  margin: 0;
+}
+
+.pagina h2 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+}
+
+.link-botao {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* ---------- Planos ---------- */
+
+.grade-planos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+}
+
+.card.cartao-plano {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card.cartao-plano--contratado {
+  border: 2px solid var(--cor-destaque);
+}
+
+.cartao-plano-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cartao-plano-topo h2,
+.cartao-plano-topo h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.cartao-plano-preco {
+  margin: 0;
+  font-size: 1.9rem;
+  font-weight: 700;
+}
+
+.cartao-plano-preco small {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--cor-texto-secundario);
+}
+
+.lista-beneficios {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  font-size: 0.92rem;
+  list-style: none;
+}
+
+.lista-beneficios li::before {
+  content: '✓ ';
+  font-weight: 700;
+  color: var(--cor-destaque);
+}
+
+.cartao-plano .link-botao {
+  margin-top: auto;
+}
+
+.detalhe-plano {
+  max-width: 640px;
+}
+
+.voltar {
+  align-self: flex-start;
+  font-size: 0.9rem;
+}
+
+/* ---------- Assinatura ---------- */
+
+.linha-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--cor-borda-card);
+}
+
+.linha-info:last-of-type {
+  border-bottom: none;
+}
+
+.linha-info > span:first-child {
+  color: var(--cor-texto-secundario);
+}
+
+.linha-info > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-align: right;
+}
+
+.acoes-assinatura {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.estado-vazio {
+  text-align: center;
+}
+
+.estado-vazio p {
+  margin-bottom: 16px;
+}

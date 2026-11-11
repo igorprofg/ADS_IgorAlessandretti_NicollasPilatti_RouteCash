@@ -10,8 +10,12 @@ interface ItemMenu {
 
 // Para incluir uma tela no menu, basta acrescentar um item aqui (e a rota em Rotas.tsx).
 // Exemplos futuros: { caminho: '/planos', rotulo: 'Planos', apenas: 'ADMINISTRADOR' }
-const ITENS: ItemMenu[] = [{ caminho: '/dashboard', rotulo: 'Dashboard' }];
-
+const ITENS: ItemMenu[] = [
+  { caminho: '/dashboard', rotulo: 'Dashboard' },
+  { caminho: '/planos', rotulo: 'Planos' },
+  { caminho: '/assinatura', rotulo: 'Assinatura' },
+  { caminho: '/pagamentos', rotulo: 'Pagamentos' },
+];
 interface MenuLateralProps {
   aberto: boolean; // só faz diferença em telas pequenas (menu vira gaveta)
   aoFechar: () => void;

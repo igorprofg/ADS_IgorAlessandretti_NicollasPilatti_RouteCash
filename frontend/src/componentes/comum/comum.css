@@ -1,0 +1,98 @@
+/* ---------- Etiqueta de situação ---------- */
+
+.etiqueta {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.etiqueta--positivo {
+  color: var(--cor-receita);
+  background: rgba(22, 139, 85, 0.14);
+}
+
+.etiqueta--negativo {
+  color: var(--cor-despesa);
+  background: rgba(209, 77, 77, 0.14);
+}
+
+.etiqueta--neutro {
+  color: var(--cor-texto-secundario);
+  background: var(--cor-superficie-variante);
+}
+
+/* ---------- Tabela ---------- */
+
+.tabela-container {
+  overflow-x: auto;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.tabela th {
+  padding: 12px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--cor-texto-secundario);
+  border-bottom: 1px solid var(--cor-borda-card);
+}
+
+.tabela td {
+  padding: 14px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--cor-borda-card);
+}
+
+.tabela tr:last-child td {
+  border-bottom: none;
+}
+
+.tabela .linha-destaque td {
+  background: var(--cor-destaque-suave);
+}
+
+/* ---------- Janela de confirmação ---------- */
+
+.modal-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.modal-fundo .modal {
+  width: min(100%, 460px);
+}
+
+.modal h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+}
+
+.modal-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.botao.botao-perigo {
+  background: var(--cor-despesa);
+}
+
+.botao.botao-perigo:hover {
+  background: var(--cor-despesa);
+  filter: brightness(0.92);
+}

@@ -11,6 +11,9 @@ import { JornadasModule } from './jornadas/jornadas.module';
 import { QuilometragemModule } from './quilometragem/quilometragem.module';
 import { IndicadoresModule } from './indicadores/indicadores.module';
 import { SincronizacaoModule } from './sincronizacao/sincronizacao.module';
+import { PlanosModule } from './planos/planos.module';
+import { AssinaturasModule } from './assinaturas/assinaturas.module';
+import { PagamentosModule } from './pagamentos/pagamentos.module';
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { SincronizacaoModule } from './sincronizacao/sincronizacao.module';
     QuilometragemModule,
     IndicadoresModule,
     SincronizacaoModule,
+    PlanosModule,
+    AssinaturasModule,
+    PagamentosModule,
   ],
 })
 export class AppModule {}

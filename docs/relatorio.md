@@ -787,6 +787,78 @@ mobile/lib/features/home/presentation/home_page.dart
 - A nova estrutura deverá utilizar arquivos no formato `route_cash_<id_usuario>.db`.
 - O logout não deverá apagar o banco do usuário, apenas fechá-lo e remover a sessão ativa, preservando o funcionamento offline.
 
+### 11/11/2026 — Igor Alessandretti — Implementação dos RF12, RF13 e RF14 (Backend)
+
+**O que foi feito:**
+
+- Implementada a funcionalidade RF12 — Visualizar Planos, permitindo consultar os planos ativos disponíveis no RouteCash.
+- Implementada a listagem de planos com nome, valor, período de cobrança e benefícios.
+- Adicionada a identificação do plano atualmente contratado pelo usuário.
+- Implementada a consulta aos detalhes de um plano, respeitando sua disponibilidade e o histórico de contratação do usuário.
+- Implementada a funcionalidade RF13 — Gerenciar Assinatura.
+- Desenvolvida a contratação de planos, verificando se o plano está ativo e se o usuário já possui uma assinatura em aberto.
+- Implementado o cálculo das datas de início e vencimento da assinatura conforme o período de cobrança.
+- Adicionada a validação dos períodos de cobrança mensal, trimestral, semestral e anual.
+- Implementada a consulta da assinatura atual e do histórico de assinaturas do usuário.
+- Desenvolvido o cancelamento de assinaturas, atualizando sua situação e registrando a data do cancelamento, sem excluir o histórico.
+- Implementada a identificação de assinaturas vencidas por meio de um campo calculado.
+- Implementada a funcionalidade RF14 — Consultar Pagamentos, permitindo consultar o histórico de pagamentos associado às assinaturas do próprio usuário.
+- Adicionada a ordenação dos pagamentos do mais recente para o mais antigo.
+- Implementado o isolamento das consultas, garantindo que cada usuário visualize somente suas próprias assinaturas e pagamentos.
+- Criado o arquivo de seed com três planos fictícios para testes: Plano Mensal, Plano Trimestral e Plano Anual.
+- Executado o seed com sucesso, inserindo os três planos no banco de dados.
+- Integrados os novos módulos ao `AppModule`.
+
+**Arquivos modificados/criados:**
+
+```text
+backend/src/common/periodo-cobranca.ts
+
+backend/src/planos/planos.module.ts
+backend/src/planos/planos.controller.ts
+backend/src/planos/planos.service.ts
+
+backend/src/assinaturas/assinaturas.module.ts
+backend/src/assinaturas/assinaturas.controller.ts
+backend/src/assinaturas/assinaturas.service.ts
+backend/src/assinaturas/dto/contratar-assinatura.dto.ts
+
+backend/src/pagamentos/pagamentos.module.ts
+backend/src/pagamentos/pagamentos.controller.ts
+backend/src/pagamentos/pagamentos.service.ts
+
+backend/prisma/seed.js
+backend/package.json
+backend/src/app.module.ts
+```
+
+**Próximos passos:**
+
+- Executar os testes das rotas dos RF12, RF13 e RF14 utilizando o Postman.
+- Validar a listagem e os detalhes dos planos.
+- Testar a contratação de planos ativos e a rejeição de planos inativos.
+- Verificar o bloqueio de novas contratações quando já existir uma assinatura em aberto.
+- Testar a consulta, o cancelamento e a preservação do histórico de assinaturas.
+- Validar a consulta dos pagamentos e o isolamento dos dados entre diferentes usuários.
+- Executar o comando `npm run build` para verificar a compilação do backend.
+- Registrar os resultados dos testes e corrigir eventuais problemas encontrados.
+
+**Dificuldades:**
+
+- Foi necessário configurar a execução do seed no `package.json` para que o Prisma reconhecesse o comando de inicialização.
+- Foi necessário corrigir a localização do arquivo `seed.js` para o diretório `backend/prisma/`.
+- Durante a execução do seed, foi identificada inicialmente uma falha de conexão com o PostgreSQL, resolvida após iniciar o container Docker.
+- Foi necessário implementar validações para impedir contratações incompatíveis com a situação atual da assinatura do usuário.
+- Foi necessário tratar o cálculo dos vencimentos em períodos que possuem quantidades diferentes de dias, incluindo finais de mês e anos bissextos.
+
+**Observações:**
+
+- Não foi necessária a criação de uma nova migration para implementar os RF12, RF13 e RF14.
+- Os três planos inseridos pelo seed são fictícios e destinados aos testes do sistema.
+- A contratação de uma assinatura não gera automaticamente um pagamento, pois o registro dos pagamentos é realizado pela administração, conforme previsto no HU52 (RF18).
+- Os pagamentos poderão ser visualizados pelo usuário após serem registrados pela administração.
+- A situação de vencimento da assinatura é calculada pelo backend, sem alteração automática da situação armazenada no banco de dados.
+- Os testes completos das funcionalidades ainda serão realizados.
 
 
 
