@@ -217,6 +217,172 @@ class SyncLocalRepository {
     );
   }
 
+  Future<int> requeueResolvedDependencyAttention() async {
+    final db = await _db;
+
+    return db.transaction((txn) async {
+      final attentionRows = await txn.query(
+        DatabaseTables.syncOutbox,
+        where:
+            'estado = ? '
+            'AND codigo_erro = ? '
+            'AND operacao = ? '
+            'AND payload_json IS NOT NULL',
+        whereArgs: ['atencao', 'NAO_ENCONTRADO', 'upsert'],
+      );
+
+      if (attentionRows.isEmpty) {
+        return 0;
+      }
+
+      // Dependências que atualmente existem no cache local.
+      // Como este método será executado DEPOIS do snapshot,
+      // esses caches já representam o estado confirmado
+      // pelo servidor.
+      final vehicleRows = await txn.query(
+        DatabaseTables.veiculosCache,
+        columns: ['id_veiculo'],
+        where: 'ativo = ?',
+        whereArgs: [1],
+      );
+
+      final platformRows = await txn.query(
+        DatabaseTables.plataformasCache,
+        columns: ['id_plataforma'],
+        where: 'ativa = ?',
+        whereArgs: [1],
+      );
+
+      final categoryRows = await txn.query(
+        DatabaseTables.categoriasCache,
+        columns: ['id_categoria'],
+      );
+
+      final validVehicleIds = vehicleRows
+          .map((row) => row['id_veiculo'].toString())
+          .toSet();
+
+      final validPlatformIds = platformRows
+          .map((row) => row['id_plataforma'].toString())
+          .toSet();
+
+      final validCategoryIds = categoryRows
+          .map((row) => row['id_categoria'].toString())
+          .toSet();
+
+      // Se a própria dependência ainda possui outbox,
+      // ainda não consideramos ela resolvida.
+      final outboxRows = await txn.query(
+        DatabaseTables.syncOutbox,
+        columns: ['entidade', 'registro_id'],
+      );
+
+      final blockedDependencies = outboxRows
+          .map(
+            (row) =>
+                '${row['entidade']}:'
+                '${row['registro_id']}',
+          )
+          .toSet();
+
+      var requeued = 0;
+
+      bool vehicleReady(String id) {
+        return validVehicleIds.contains(id) &&
+            !blockedDependencies.contains('veiculo:$id');
+      }
+
+      bool platformReady(String id) {
+        return validPlatformIds.contains(id) &&
+            !blockedDependencies.contains('plataforma:$id');
+      }
+
+      bool categoryReady(String id) {
+        return validCategoryIds.contains(id);
+      }
+
+      for (final row in attentionRows) {
+        final rawPayload = row['payload_json']?.toString();
+
+        if (rawPayload == null || rawPayload.isEmpty) {
+          continue;
+        }
+
+        Map<String, dynamic> payload;
+
+        try {
+          final decoded = jsonDecode(rawPayload);
+
+          if (decoded is! Map) {
+            continue;
+          }
+
+          payload = Map<String, dynamic>.from(decoded);
+        } catch (_) {
+          continue;
+        }
+
+        final entidade = row['entidade']?.toString();
+
+        var resolved = false;
+
+        switch (entidade) {
+          case 'ganho':
+            final idVeiculo = payload['id_veiculo']?.toString();
+
+            final idPlataforma = payload['id_plataforma']?.toString();
+
+            if (idVeiculo != null && idPlataforma != null) {
+              resolved = vehicleReady(idVeiculo) && platformReady(idPlataforma);
+            }
+
+            break;
+
+          case 'despesa':
+            final idVeiculo = payload['id_veiculo']?.toString();
+
+            final idCategoria = payload['id_categoria']?.toString();
+
+            if (idVeiculo != null && idCategoria != null) {
+              resolved = vehicleReady(idVeiculo) && categoryReady(idCategoria);
+            }
+
+            break;
+
+          case 'jornada':
+            final idVeiculo = payload['id_veiculo']?.toString();
+
+            if (idVeiculo != null) {
+              resolved = vehicleReady(idVeiculo);
+            }
+
+            break;
+        }
+
+        if (!resolved) {
+          continue;
+        }
+
+        await txn.update(
+          DatabaseTables.syncOutbox,
+          {
+            'estado': 'pendente',
+            'codigo_erro': null,
+            'motivo_erro': null,
+            'tentativas': 0,
+            'atualizado_em': DateTime.now().toUtc().toIso8601String(),
+          },
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+
+        requeued++;
+      }
+
+      return requeued;
+    });
+  }
+
   Future<int> countOutbox() async {
     final db = await _db;
 

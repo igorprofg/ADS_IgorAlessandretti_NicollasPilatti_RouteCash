@@ -229,9 +229,27 @@ export class SincronizacaoService {
 
     // A placa é única no sistema
     if (placa) {
-      const placaEmUso = await this.prisma.veiculo.findFirst({
-        where: { placa, id_veiculo: { not: item.id_veiculo } },
-      });
+      const placaEmUso =
+    placa
+        ? await this.prisma.veiculo.findFirst({
+            where: {
+              id_usuario: usuarioId,
+              placa,
+              id_veiculo: {
+                not: item.id_veiculo,
+              },
+            },
+          })
+        : null;
+
+if (placaEmUso) {
+  throw new ErroItem(
+    'CONFLITO',
+    placaEmUso.ativo
+      ? 'Você já possui um veículo cadastrado com essa placa'
+      : 'Você já possui um veículo inativo com essa placa',
+  );
+}
       if (placaEmUso) {
         throw new ErroItem('CONFLITO', 'Já existe um veículo cadastrado com essa placa');
       }

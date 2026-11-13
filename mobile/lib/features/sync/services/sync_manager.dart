@@ -2,6 +2,7 @@ import '../data/sync_item_result.dart';
 import '../data/sync_local_repository.dart';
 import '../data/sync_outbox_item.dart';
 import '../data/sync_repository.dart';
+import 'package:flutter/foundation.dart';
 
 class SyncManager {
   final SyncRepository remoteRepository;
@@ -21,8 +22,40 @@ class SyncManager {
     _running = true;
 
     try {
+      // 1ª etapa:
+      // envia tudo que já está pendente.
       await _sendPending();
+
+      // Atualiza os caches com o estado
+      // realmente existente no servidor.
       await _downloadAndReconcile();
+
+      // Alguns itens podem ter ficado em atenção
+      // porque uma dependência ainda não existia.
+      //
+      // Exemplo:
+      // veículo falhou -> ganho falhou.
+      //
+      // Se o veículo agora já está confirmado pelo
+      // snapshot, o ganho pode voltar para pendente.
+      final requeued = await localRepository
+          .requeueResolvedDependencyAttention();
+
+      if (requeued > 0) {
+        debugPrint(
+          '[SYNC] $requeued item(ns) '
+          'voltaram de atenção para pendente '
+          'após resolução das dependências.',
+        );
+
+        // 2ª etapa:
+        // tenta imediatamente os itens recuperados.
+        await _sendPending();
+
+        // E atualiza novamente o SQLite com
+        // o resultado final do servidor.
+        await _downloadAndReconcile();
+      }
     } finally {
       _running = false;
     }
@@ -130,6 +163,17 @@ class SyncManager {
             .map((item) => {'entidade': item.entidade, 'id': item.registroId})
             .toList(),
       );
+
+      for (final result in results) {
+        debugPrint(
+          '[SYNC] '
+          'entidade=${result.entidade} '
+          'id=${result.id} '
+          'status=${result.status} '
+          'codigo=${result.codigo} '
+          'motivo=${result.motivo}',
+        );
+      }
 
       for (final result in results) {
         await _applyResult(result);

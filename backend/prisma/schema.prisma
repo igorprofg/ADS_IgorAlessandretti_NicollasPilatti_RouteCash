@@ -43,21 +43,21 @@ enum SituacaoPagamento {
 // ============================================
 
 model Usuario {
-  id_usuario        String      @id @default(uuid()) @db.Uuid
-  nome              String      @db.VarChar(100)
-  email             String      @unique @db.VarChar(150)
-  senha_hash        String      @db.VarChar(255)
-  tipo_usuario      TipoUsuario
-  status_conta      StatusConta @default(ATIVO)
-  aceite_termos_em  DateTime
-  data_cadastro     DateTime    @default(now())
-  data_atualizacao  DateTime    @updatedAt
+  id_usuario       String      @id @default(uuid()) @db.Uuid
+  nome             String      @db.VarChar(100)
+  email            String      @unique @db.VarChar(150)
+  senha_hash       String      @db.VarChar(255)
+  tipo_usuario     TipoUsuario
+  status_conta     StatusConta @default(ATIVO)
+  aceite_termos_em DateTime
+  data_cadastro    DateTime    @default(now())
+  data_atualizacao DateTime    @updatedAt
 
-  veiculos          Veiculo[]
-  plataformas       Plataforma[]
+  veiculos           Veiculo[]
+  plataformas        Plataforma[]
   categorias_despesa CategoriaDespesa[]
-  jornadas          Jornada[]
-  assinaturas       Assinatura[]
+  jornadas           Jornada[]
+  assinaturas        Assinatura[]
 
   @@map("usuario")
 }
@@ -74,7 +74,7 @@ model Veiculo {
   ano              Int
   combustivel      String   @db.VarChar(30)
   consumo_medio    Decimal  @db.Decimal(6, 2)
-  placa            String?  @unique @db.VarChar(10)
+  placa            String?  @db.VarChar(10)
   principal        Boolean  @default(false)
   ativo            Boolean  @default(true)
   data_cadastro    DateTime @default(now())
