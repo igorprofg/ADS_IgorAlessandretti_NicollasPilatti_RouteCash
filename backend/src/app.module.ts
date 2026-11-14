@@ -14,6 +14,8 @@ import { SincronizacaoModule } from './sincronizacao/sincronizacao.module';
 import { PlanosModule } from './planos/planos.module';
 import { AssinaturasModule } from './assinaturas/assinaturas.module';
 import { PagamentosModule } from './pagamentos/pagamentos.module';
+import { ConfigModule } from '@nestjs/config';
+import { AsaasModule } from './asaas/asaas.module';
 
 @Module({
   imports: [
@@ -32,6 +34,9 @@ import { PagamentosModule } from './pagamentos/pagamentos.module';
     PlanosModule,
     AssinaturasModule,
     PagamentosModule,
+    PrismaModule,
+    UsuariosModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

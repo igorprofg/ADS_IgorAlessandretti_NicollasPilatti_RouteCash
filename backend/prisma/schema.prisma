@@ -26,10 +26,50 @@ enum StatusConta {
   BLOQUEADO
 }
 
+// ============================================
+// SITUAÇÃO DA ASSINATURA
+// ============================================
+//
+// PENDENTE:
+// assinatura criada, mas pagamento ainda
+// não confirmado.
+//
+// ATIVA:
+// assinatura com acesso liberado.
+//
+// SUSPENSA:
+// assinatura temporariamente suspensa.
+//
+// CANCELADA:
+// assinatura encerrada.
+//
 enum SituacaoAssinatura {
   ATIVA
   SUSPENSA
   CANCELADA
+
+  // ASAAS:
+  // utilizada enquanto o pagamento
+  // ainda não foi confirmado.
+  PENDENTE
+}
+
+// ============================================
+// ORIGEM DA ASSINATURA
+// ============================================
+//
+// Permite ao Route Cash manter dois fluxos:
+//
+// MANUAL:
+// liberação feita por administrador.
+//
+// ASAAS:
+// contratação utilizando a integração
+// automática com o gateway Asaas.
+//
+enum OrigemAssinatura {
+  MANUAL
+  ASAAS
 }
 
 enum SituacaoPagamento {
@@ -52,6 +92,23 @@ model Usuario {
   aceite_termos_em DateTime
   data_cadastro    DateTime    @default(now())
   data_atualizacao DateTime    @updatedAt
+
+  // ==========================================
+  // ASAAS
+  // ==========================================
+  //
+  // ID do Customer correspondente ao usuário
+  // dentro do Asaas.
+  //
+  // Será criado quando o usuário utilizar
+  // pela primeira vez o fluxo de contratação.
+  //
+  // É opcional porque usuários que nunca
+  // contrataram plano não possuem Customer.
+  //
+  // Exemplo:
+  // cus_000000000000
+  asaas_customer_id String? @unique @db.VarChar(100)
 
   veiculos           Veiculo[]
   plataformas        Plataforma[]
@@ -84,6 +141,16 @@ model Veiculo {
   ganhos   Ganho[]
   despesas Despesa[]
   jornadas Jornada[]
+
+  // IMPORTANTE:
+  //
+  // Não utilizar @unique global na placa.
+  //
+  // A mesma placa pode existir em usuários
+  // diferentes.
+  //
+  // A unicidade por usuário é mantida pela
+  // migration PostgreSQL criada anteriormente.
 
   @@map("veiculo")
 }
@@ -191,12 +258,35 @@ model Jornada {
 // ============================================
 
 model Plano {
-  id_plano         String   @id @default(uuid()) @db.Uuid
-  nome             String   @db.VarChar(60)
-  valor            Decimal  @db.Decimal(12, 2)
-  periodo_cobranca String   @db.VarChar(30)
-  beneficios       String   @db.Text
-  ativo            Boolean  @default(true)
+  id_plano String @id @default(uuid()) @db.Uuid
+
+  nome String @db.VarChar(60)
+
+  // ==========================================
+  // ASAAS
+  // ==========================================
+  //
+  // Valor utilizado pelo backend ao criar
+  // a cobrança/assinatura no Asaas.
+  valor Decimal @db.Decimal(12, 2)
+
+  // ==========================================
+  // ASAAS
+  // ==========================================
+  //
+  // Periodicidade cadastrada no Route Cash.
+  //
+  // Exemplos:
+  // MENSAL
+  // ANUAL
+  //
+  // O AsaasService fará a conversão para
+  // o ciclo correspondente da API Asaas.
+  periodo_cobranca String @db.VarChar(30)
+
+  beneficios String  @db.Text
+  ativo      Boolean @default(true)
+
   data_cadastro    DateTime @default(now())
   data_atualizacao DateTime @updatedAt
 
@@ -210,18 +300,104 @@ model Plano {
 // ============================================
 
 model Assinatura {
-  id_assinatura     String             @id @default(uuid()) @db.Uuid
-  id_usuario        String             @db.Uuid
-  id_plano          String             @db.Uuid
-  data_inicio       DateTime           @db.Date
-  data_vencimento   DateTime           @db.Date
-  situacao          SituacaoAssinatura @default(ATIVA)
-  data_cancelamento DateTime?
-  data_cadastro     DateTime           @default(now())
-  data_atualizacao  DateTime           @updatedAt
+  id_assinatura String @id @default(uuid()) @db.Uuid
+  id_usuario    String @db.Uuid
+  id_plano      String @db.Uuid
 
-  usuario    Usuario     @relation(fields: [id_usuario], references: [id_usuario])
-  plano      Plano       @relation(fields: [id_plano], references: [id_plano])
+  // ==========================================
+  // ASAAS
+  // ==========================================
+  //
+  // Agora são opcionais porque uma assinatura
+  // pode existir antes do pagamento.
+  //
+  // Exemplo:
+  //
+  // contratação
+  //      ↓
+  // PENDENTE
+  //      ↓
+  // pagamento confirmado
+  //      ↓
+  // ATIVA
+  //
+  // Somente depois da confirmação são
+  // preenchidas as datas efetivas.
+  data_inicio     DateTime? @db.Date
+  data_vencimento DateTime? @db.Date
+
+  // ==========================================
+  // MIGRATION ASAAS - IMPORTANTE
+  // ==========================================
+  //
+  // NESTA PRIMEIRA MIGRATION permanece ATIVA.
+  //
+  // O valor PENDENTE está sendo adicionado ao
+  // enum existente SituacaoAssinatura.
+  //
+  // O PostgreSQL não permite adicionar o valor
+  // e utilizá-lo imediatamente como DEFAULT
+  // dentro da mesma transação.
+  //
+  // Após esta migration ser aplicada,
+  // criaremos uma segunda migration alterando
+  // somente:
+  //
+  // @default(PENDENTE)
+  //
+  // para:
+  //
+  // @default(PENDENTE)
+  //
+  situacao SituacaoAssinatura @default(ATIVA)
+
+  // ==========================================
+  // ASAAS / ADMINISTRADOR
+  // ==========================================
+  //
+  // MANUAL:
+  // assinatura criada/liberada manualmente.
+  //
+  // ASAAS:
+  // assinatura criada pelo fluxo automático.
+  //
+  // MANUAL permanece como default para manter
+  // coerência com registros antigos.
+  //
+  // Assinaturas criadas pelo AsaasService
+  // deverão informar explicitamente:
+  //
+  // origem: ASAAS
+  origem OrigemAssinatura @default(MANUAL)
+
+  // ==========================================
+  // ASAAS - CHECKOUT
+  // ==========================================
+  //
+  // ID do Checkout correspondente no Asaas.
+  //
+  // É opcional porque assinaturas manuais não
+  // possuem checkout externo.
+  asaas_checkout_id String? @unique @db.VarChar(100)
+
+  // ==========================================
+  // ASAAS - ASSINATURA
+  // ==========================================
+  //
+  // ID da assinatura recorrente existente
+  // dentro do Asaas.
+  //
+  // Pode ser nulo durante o checkout ou em
+  // assinaturas manuais.
+  asaas_subscription_id String? @unique @db.VarChar(100)
+
+  data_cancelamento DateTime?
+  data_cadastro     DateTime  @default(now())
+  data_atualizacao  DateTime  @updatedAt
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+  plano   Plano   @relation(fields: [id_plano], references: [id_plano])
+
   pagamentos Pagamento[]
 
   @@map("assinatura")
@@ -232,16 +408,122 @@ model Assinatura {
 // ============================================
 
 model Pagamento {
-  id_pagamento     String            @id @default(uuid()) @db.Uuid
-  id_assinatura    String            @db.Uuid
-  valor            Decimal           @db.Decimal(12, 2)
-  data_vencimento  DateTime          @db.Date
-  data_pagamento   DateTime?         @db.Date
-  situacao         SituacaoPagamento @default(PENDENTE)
-  data_cadastro    DateTime          @default(now())
-  data_atualizacao DateTime          @updatedAt
+  id_pagamento  String @id @default(uuid()) @db.Uuid
+  id_assinatura String @db.Uuid
+
+  valor Decimal @db.Decimal(12, 2)
+
+  data_vencimento DateTime  @db.Date
+  data_pagamento  DateTime? @db.Date
+
+  // PENDENTE:
+  // cobrança ainda não paga.
+  //
+  // PAGO:
+  // pagamento confirmado.
+  //
+  // VENCIDO:
+  // cobrança vencida.
+  situacao SituacaoPagamento @default(PENDENTE)
+
+  // ==========================================
+  // ASAAS
+  // ==========================================
+  //
+  // ID da cobrança/pagamento correspondente
+  // dentro do Asaas.
+  //
+  // Será utilizado principalmente quando
+  // eventos de Webhook forem recebidos.
+  //
+  // Exemplo:
+  // pay_000000000000
+  //
+  // É opcional para permitir pagamentos
+  // registrados manualmente.
+  asaas_payment_id String? @unique @db.VarChar(100)
+
+  data_cadastro    DateTime @default(now())
+  data_atualizacao DateTime @updatedAt
 
   assinatura Assinatura @relation(fields: [id_assinatura], references: [id_assinatura])
 
   @@map("pagamento")
+}
+
+// ============================================
+// EVENTO WEBHOOK - ASAAS
+// ============================================
+//
+// Armazena os eventos já processados enviados
+// pelo Asaas.
+//
+// O objetivo principal é garantir idempotência.
+//
+// Exemplo:
+//
+// Asaas envia:
+// evt_123
+//
+// Route Cash processa o evento
+// e grava evt_123.
+//
+// Se evt_123 for enviado novamente:
+//
+// o backend identifica que já foi processado
+// e não executa a operação novamente.
+//
+// Isso protege contra:
+//
+// - pagamento duplicado;
+// - ativação duplicada;
+// - cancelamento duplicado;
+// - atualização duplicada;
+// - processamento repetido de Webhooks.
+//
+model EventoWebhook {
+  // ==========================================
+  // ASAAS
+  // ==========================================
+  //
+  // ID único do evento recebido.
+  //
+  // É utilizado como chave primária para impedir
+  // que o mesmo evento seja armazenado/processado
+  // duas vezes.
+  id_evento String @id @db.VarChar(150)
+
+  // Gateway responsável pelo evento.
+  //
+  // Inicialmente:
+  //
+  // ASAAS
+  //
+  // String permite futuramente adicionar outro
+  // gateway sem alterar obrigatoriamente o schema.
+  provedor String @db.VarChar(30)
+
+  // ==========================================
+  // ASAAS
+  // ==========================================
+  //
+  // Tipo do evento recebido.
+  //
+  // Exemplos:
+  //
+  // CHECKOUT_PAID
+  // CHECKOUT_CANCELED
+  // CHECKOUT_EXPIRED
+  //
+  // PAYMENT_CONFIRMED
+  // PAYMENT_RECEIVED
+  // PAYMENT_OVERDUE
+  // PAYMENT_REFUNDED
+  tipo String @db.VarChar(100)
+
+  // Data/hora em que o Route Cash terminou
+  // de processar o evento.
+  processado_em DateTime @default(now())
+
+  @@map("evento_webhook")
 }
