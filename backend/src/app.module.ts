@@ -17,8 +17,12 @@ import { PagamentosModule } from './pagamentos/pagamentos.module';
 import { ConfigModule } from '@nestjs/config';
 import { AsaasModule } from './asaas/asaas.module';
 
+
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     PrismaModule,
     UsuariosModule,
     AutenticacaoModule,
@@ -36,7 +40,8 @@ import { AsaasModule } from './asaas/asaas.module';
     PagamentosModule,
     PrismaModule,
     UsuariosModule,
-    AuthModule,
+    AutenticacaoModule,
+    AsaasModule,
   ],
 })
 export class AppModule {}

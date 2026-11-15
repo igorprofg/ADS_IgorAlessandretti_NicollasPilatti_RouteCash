@@ -83,38 +83,193 @@ enum SituacaoPagamento {
 // ============================================
 
 model Usuario {
-  id_usuario       String      @id @default(uuid()) @db.Uuid
-  nome             String      @db.VarChar(100)
-  email            String      @unique @db.VarChar(150)
-  senha_hash       String      @db.VarChar(255)
-  tipo_usuario     TipoUsuario
-  status_conta     StatusConta @default(ATIVO)
-  aceite_termos_em DateTime
-  data_cadastro    DateTime    @default(now())
-  data_atualizacao DateTime    @updatedAt
+  // ==========================================
+  // IDENTIFICAÇÃO
+  // ==========================================
+
+  // Identificador único interno do usuário
+  // dentro do Route Cash.
+  id_usuario String @id @default(uuid()) @db.Uuid
+
+  // Nome completo do usuário.
+  //
+  // Também poderá ser enviado ao Asaas quando
+  // for criado o Customer correspondente.
+  nome String @db.VarChar(100)
+
+  // E-mail utilizado para login no Route Cash.
+  //
+  // Também poderá ser enviado ao Asaas para
+  // identificação e comunicação do cliente.
+  email String @unique @db.VarChar(150)
 
   // ==========================================
-  // ASAAS
+  // DADOS PARA PAGAMENTO / ASAAS
   // ==========================================
+
+  // CPF ou CNPJ do usuário.
   //
+  // Utilizado principalmente na criação do
+  // Customer no Asaas.
+  //
+  // É opcional no banco para não quebrar
+  // usuários já cadastrados anteriormente.
+  //
+  // Antes de iniciar uma contratação pelo Asaas,
+  // o backend deverá verificar se esse campo
+  // está preenchido.
+  //
+  // O valor deverá ser salvo somente com números.
+  //
+  // Exemplos:
+  // CPF: 12345678901
+  // CNPJ: 12345678000199
+  cpf_cnpj String? @unique @db.VarChar(14)
+
+  // Número de celular do usuário.
+  //
+  // Poderá ser enviado ao Asaas junto com os
+  // dados do Customer.
+  //
+  // É opcional porque usuários antigos podem
+  // ainda não possuir essa informação.
+  //
+  // Recomenda-se armazenar apenas números.
+  //
+  // Exemplo:
+  // 54999999999
+  celular String? @db.VarChar(20)
+
+  // ==========================================
+  // ENDEREÇO - ASAAS
+  // ==========================================
+
+  // CEP do usuário.
+  //
+  // Utilizado pelo Asaas para completar e validar
+  // os dados de endereço do Customer.
+  //
+  // Recomenda-se armazenar somente números.
+  //
+  // Exemplo:
+  // 99010000
+  cep String? @db.VarChar(8)
+
+  // Logradouro do usuário.
+  //
+  // Exemplo:
+  // Rua Morom
+  logradouro String? @db.VarChar(150)
+
+  // Número do endereço.
+  //
+  // Exemplo:
+  // 123
+  numero_endereco String? @db.VarChar(20)
+
+  // Complemento do endereço.
+  //
+  // Campo opcional.
+  //
+  // Exemplos:
+  // Apto 302
+  // Casa 2
+  complemento String? @db.VarChar(100)
+
+  // Bairro do usuário.
+  //
+  // No Asaas corresponde ao campo province.
+  //
+  // Exemplo:
+  // Centro
+  bairro String? @db.VarChar(100)
+
+  // ==========================================
+  // AUTENTICAÇÃO
+  // ==========================================
+
+  // Hash da senha do usuário.
+  //
+  // Nunca deve armazenar a senha em texto puro.
+  senha_hash String @db.VarChar(255)
+
+  // Define o papel do usuário dentro do sistema:
+  //
+  // MOTORISTA
+  // ADMINISTRADOR
+  tipo_usuario TipoUsuario
+
+  // Define o estado da conta no Route Cash:
+  //
+  // ATIVO
+  // SUSPENSO
+  // BLOQUEADO
+  status_conta StatusConta @default(ATIVO)
+
+  // Data/hora em que o usuário aceitou
+  // os termos de uso do Route Cash.
+  aceite_termos_em DateTime
+
+  // ==========================================
+  // CONTROLE DE REGISTRO
+  // ==========================================
+
+  // Data/hora de criação do usuário.
+  data_cadastro DateTime @default(now())
+
+  // Atualizada automaticamente pelo Prisma
+  // sempre que o registro for modificado.
+  data_atualizacao DateTime @updatedAt
+
+  // ==========================================
+  // ASAAS - CUSTOMER
+  // ==========================================
+
   // ID do Customer correspondente ao usuário
   // dentro do Asaas.
   //
-  // Será criado quando o usuário utilizar
-  // pela primeira vez o fluxo de contratação.
+  // Fluxo esperado:
+  //
+  // usuário contrata plano
+  //        ↓
+  // backend verifica asaas_customer_id
+  //        ↓
+  // se não existir:
+  // cria Customer no Asaas
+  //        ↓
+  // Asaas retorna o ID
+  //        ↓
+  // Route Cash salva neste campo
+  //
+  // Nas próximas cobranças o mesmo Customer
+  // poderá ser reutilizado.
   //
   // É opcional porque usuários que nunca
-  // contrataram plano não possuem Customer.
+  // utilizaram o fluxo de pagamento não terão
+  // Customer criado no Asaas.
   //
   // Exemplo:
   // cus_000000000000
   asaas_customer_id String? @unique @db.VarChar(100)
 
-  veiculos           Veiculo[]
-  plataformas        Plataforma[]
+  // ==========================================
+  // RELACIONAMENTOS
+  // ==========================================
+
+  // Veículos cadastrados pelo motorista.
+  veiculos Veiculo[]
+
+  // Plataformas utilizadas pelo motorista.
+  plataformas Plataforma[]
+
+  // Categorias de despesas próprias do usuário.
   categorias_despesa CategoriaDespesa[]
-  jornadas           Jornada[]
-  assinaturas        Assinatura[]
+
+  // Jornadas registradas pelo usuário.
+  jornadas Jornada[]
+
+  // Histórico de assinaturas do usuário.
+  assinaturas Assinatura[]
 
   @@map("usuario")
 }
@@ -327,29 +482,18 @@ model Assinatura {
   data_vencimento DateTime? @db.Date
 
   // ==========================================
-  // MIGRATION ASAAS - IMPORTANTE
+  // SITUAÇÃO DA ASSINATURA
   // ==========================================
   //
-  // NESTA PRIMEIRA MIGRATION permanece ATIVA.
+  // Novas assinaturas começam como PENDENTE.
   //
-  // O valor PENDENTE está sendo adicionado ao
-  // enum existente SituacaoAssinatura.
+  // No fluxo ASAAS, somente após a confirmação
+  // do pagamento via Webhook a assinatura será
+  // alterada para ATIVA.
   //
-  // O PostgreSQL não permite adicionar o valor
-  // e utilizá-lo imediatamente como DEFAULT
-  // dentro da mesma transação.
-  //
-  // Após esta migration ser aplicada,
-  // criaremos uma segunda migration alterando
-  // somente:
-  //
-  // @default(PENDENTE)
-  //
-  // para:
-  //
-  // @default(PENDENTE)
-  //
-  situacao SituacaoAssinatura @default(ATIVA)
+  // No fluxo MANUAL, o backend informa ATIVA
+  // explicitamente ao criar a assinatura.
+  situacao SituacaoAssinatura @default(PENDENTE)
 
   // ==========================================
   // ASAAS / ADMINISTRADOR
