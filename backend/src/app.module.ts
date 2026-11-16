@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { AutenticacaoModule } from './autenticacao/autenticacao.module';
@@ -14,9 +15,9 @@ import { SincronizacaoModule } from './sincronizacao/sincronizacao.module';
 import { PlanosModule } from './planos/planos.module';
 import { AssinaturasModule } from './assinaturas/assinaturas.module';
 import { PagamentosModule } from './pagamentos/pagamentos.module';
-import { ConfigModule } from '@nestjs/config';
+import { AssinantesModule } from './assinantes/assinantes.module';
+import { PlanosAdminModule } from './planos-admin/planos-admin.module';
 import { AsaasModule } from './asaas/asaas.module';
-
 
 @Module({
   imports: [
@@ -38,9 +39,8 @@ import { AsaasModule } from './asaas/asaas.module';
     PlanosModule,
     AssinaturasModule,
     PagamentosModule,
-    PrismaModule,
-    UsuariosModule,
-    AutenticacaoModule,
+    AssinantesModule,
+    PlanosAdminModule,
     AsaasModule,
   ],
 })

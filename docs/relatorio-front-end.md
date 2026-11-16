@@ -212,6 +212,53 @@ frontend/src/componentes/MenuLateral.tsx
 - Os testes completos do frontend ainda serão realizados.
 
 
+### 15/11/2026 — Igor Alessandretti
+
+**O que foi feito:**
+
+- Implementado o RF15 — Gerenciamento de Assinantes, com criação das telas administrativas de listagem e detalhes dos assinantes.
+- Criada a página `Assinantes.tsx`, permitindo visualizar os motoristas cadastrados, consultar situação da conta, plano atual, situação da assinatura e vencimento.
+- Implementados campos de pesquisa por nome e e-mail, com botões para pesquisar e limpar os filtros.
+- Implementada a paginação da listagem, permitindo navegar entre os resultados.
+- Criada a página `DetalheAssinante.tsx`, exibindo informações cadastrais, data de cadastro, aceite dos termos de uso e dados da assinatura atual.
+- Implementados os botões de ativação, suspensão e bloqueio de assinantes, com utilização de modal de confirmação antes da execução das operações.
+- Criado o serviço `assinantes.servico.ts`, responsável por realizar as requisições à API para listar, consultar e alterar o status dos assinantes.
+- Criados os tipos e interfaces em `admin.tipos.ts`, representando os dados dos assinantes, filtros, paginação e informações da assinatura.
+- Implementadas etiquetas visuais para identificar os status das contas dos assinantes.
+- Implementados tratamentos de carregamento, mensagens de erro e confirmação de sucesso nas operações administrativas.
+- Implementado o controle de navegação por perfil de usuário, com as rotas `RotaAdministrador` e `RotaMotorista`.
+- Integradas as páginas administrativas de assinantes ao sistema de rotas do frontend.
+- Implementado o RF16 — Gerenciamento de Planos, com a criação das telas administrativas para listar, cadastrar, editar, ativar e inativar planos.
+- Criada a página de gerenciamento de planos, apresentando informações dos planos, situação e quantidade de assinaturas vinculadas.
+- Criado o formulário de cadastro e edição de planos, com campos para nome, valor, período de cobrança e benefícios.
+- Implementadas validações nos formulários para impedir o envio de dados inválidos.
+- Implementada a desativação do campo de período de cobrança na edição de planos que possuem assinaturas vinculadas, acompanhada de mensagem explicativa.
+- Implementadas confirmações antes das operações de ativação e inativação dos planos.
+- Criados os serviços e tipos específicos para comunicação com as rotas administrativas de planos.
+- Integradas as páginas de gerenciamento de planos às rotas protegidas do administrador.
+- Atualizado o menu administrativo para disponibilizar os acessos às áreas de assinantes e de planos.
+
+**Próximos passos:**
+
+- Iniciar o desenvolvimento da interface correspondente ao RF17.
+- Continuar os testes de integração entre as telas administrativas e o backend.
+- Verificar o comportamento das interfaces após as alterações dos próximos requisitos funcionais.
+
+**Dificuldades:**
+
+- Foi necessário adaptar a apresentação dos dados de assinatura devido à possibilidade de datas nulas após as alterações realizadas para a integração com o Asaas.
+- Também foi necessário organizar as rotas e os componentes administrativos para permitir a integração dos módulos de gerenciamento de assinantes e planos.
+- Foram realizados ajustes nos formulários e nas mensagens de confirmação para respeitar as regras de negócio e evitar alterações indevidas nos dados existentes.
+
+**Observações:**
+
+- A listagem e os detalhes dos assinantes foram testados pela interface web.
+- Os filtros por nome e e-mail e a navegação entre páginas apresentaram o comportamento esperado.
+- As ações de ativar, suspender e bloquear foram testadas pela interface, com confirmação antes da execução.
+- O gerenciamento administrativo de planos foi testado, incluindo cadastro, edição, ativação e inativação.
+- A interface respeita a separação de acesso entre motoristas e administradores.
+- Os testes realizados indicaram funcionamento adequado das interfaces dos RF15 e RF16.
+
 
 
 <!-- Próxima entrada: copiar o modelo abaixo -->

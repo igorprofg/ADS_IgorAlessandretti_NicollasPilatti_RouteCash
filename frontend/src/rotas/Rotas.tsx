@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import RotaPrivada from './RotaPrivada';
+import RotaMotorista from './RotaMotorista';
+import RotaAdministrador from './RotaAdministrador';
 import LayoutPrincipal from '../componentes/layout/LayoutPrincipal';
 import Login from '../paginas/autenticacao/Login';
 import Cadastro from '../paginas/autenticacao/Cadastro';
@@ -8,6 +10,10 @@ import Planos from '../paginas/planos/Planos';
 import DetalhePlano from '../paginas/planos/DetalhePlano';
 import Assinatura from '../paginas/assinatura/Assinatura';
 import Pagamentos from '../paginas/pagamentos/Pagamentos';
+import Assinantes from '../paginas/admin/assinantes/Assinantes';
+import DetalheAssinante from '../paginas/admin/assinantes/DetalheAssinante';
+import PlanosAdmin from '../paginas/admin/planos/PlanosAdmin';
+import FormularioPlano from '../paginas/admin/planos/FormularioPlano';
 
 export default function Rotas() {
   return (
@@ -19,15 +25,27 @@ export default function Rotas() {
       {/* Exigem login e aparecem dentro da moldura (cabeçalho + menu lateral) */}
       <Route element={<RotaPrivada />}>
         <Route element={<LayoutPrincipal />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/planos" element={<Planos />} />
-          <Route path="/planos/:id" element={<DetalhePlano />} />
-          <Route path="/assinatura" element={<Assinatura />} />
-          <Route path="/pagamentos" element={<Pagamentos />} />
+          {/* Motorista */}
+          <Route element={<RotaMotorista />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/planos" element={<Planos />} />
+            <Route path="/planos/:id" element={<DetalhePlano />} />
+            <Route path="/assinatura" element={<Assinatura />} />
+            <Route path="/pagamentos" element={<Pagamentos />} />
+          </Route>
+
+          {/* Administrador */}
+          <Route element={<RotaAdministrador />}>
+            <Route path="/admin/assinantes" element={<Assinantes />} />
+            <Route path="/admin/assinantes/:id" element={<DetalheAssinante />} />
+            <Route path="/admin/planos" element={<PlanosAdmin />} />
+            <Route path="/admin/planos/novo" element={<FormularioPlano />} />
+            <Route path="/admin/planos/:id/editar" element={<FormularioPlano />} />
+          </Route>
         </Route>
       </Route>
 
-      {/* Qualquer outro endereço cai no dashboard (que pede login se for preciso) */}
+      {/* Qualquer outro endereço cai no dashboard (administrador é redirecionado dali para a área dele) */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

@@ -1,0 +1,28 @@
+.cabecalho-pagina {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.formulario-plano {
+  max-width: 640px;
+}
+
+textarea.campo {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.dica-campo {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--cor-texto-secundario);
+}
+
+.acoes-formulario {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}

@@ -1,0 +1,40 @@
+.filtro-assinantes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.filtro-assinantes .grupo-campo {
+  flex: 1 1 220px;
+}
+
+.paginacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.botao-secundario:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.botao-secundario.botao-pequeno {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.acoes-assinante {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.detalhe-assinante {
+  max-width: 720px;
+}

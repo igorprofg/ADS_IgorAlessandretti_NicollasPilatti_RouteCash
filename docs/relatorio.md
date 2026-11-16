@@ -861,6 +861,51 @@ backend/src/app.module.ts
 - Os testes completos das funcionalidades ainda serão realizados.
 
 
+### 15/11/2026 — Igor Alessandretti
+
+**O que foi feito:**
+
+- Implementado o RF15 — Gerenciamento de Assinantes, contemplando as funcionalidades administrativas HU41, HU42, HU43 e HU44.
+- Criado o módulo `AssinantesModule`, com controller e service próprios para o gerenciamento dos assinantes.
+- Implementada a listagem de assinantes por meio de `GET /admin/assinantes`, retornando somente usuários com perfil `MOTORISTA`.
+- Implementados filtros de pesquisa por nome e e-mail, sem diferenciação entre letras maiúsculas e minúsculas, além de paginação.
+- Implementada a consulta individual de assinantes por meio de `GET /admin/assinantes/:id`, incluindo dados cadastrais, aceite dos termos de uso e informações da assinatura atual.
+- Implementadas as operações administrativas:
+  - `PATCH /admin/assinantes/:id/ativar`;
+  - `PATCH /admin/assinantes/:id/suspender`;
+  - `PATCH /admin/assinantes/:id/bloquear`.
+- Implementado o `AdministradorGuard`, garantindo que somente usuários autenticados com perfil de administrador possam acessar as rotas administrativas.
+- Atualizada a estratégia JWT (`JwtStrategy`) para consultar o status atual da conta no banco de dados durante as requisições protegidas. Dessa forma, contas suspensas ou bloqueadas perdem o acesso sem precisar aguardar a expiração do token.
+- Integrado o `AssinantesModule` ao `AppModule`.
+- Implementado o RF16 — Gerenciamento de Planos, contemplando as funcionalidades HU45, HU46 e HU47.
+- Criado o módulo administrativo de planos, com operações de listagem, cadastro, edição, ativação e inativação.
+- Implementadas validações de dados, incluindo valor positivo, campos obrigatórios, períodos de cobrança permitidos e prevenção de nomes duplicados sem diferenciação entre maiúsculas e minúsculas.
+- Implementada a proteção do histórico de assinaturas, impedindo a alteração do período de cobrança de planos que já possuem assinaturas vinculadas.
+- Implementada a preservação das assinaturas existentes ao inativar um plano, impedindo somente novas contratações.
+- Integrado o `PlanosAdminModule` ao `AppModule`.
+- Realizados testes pelo Postman para validar permissões, respostas HTTP, regras de negócio e operações administrativas dos RF15 e RF16.
+
+**Próximos passos:**
+
+- Iniciar o desenvolvimento do RF17.
+- Dar continuidade aos testes de integração entre assinaturas, planos e pagamentos.
+
+**Dificuldades:**
+
+- Após as alterações realizadas no `schema.prisma` para a integração com o Asaas, os campos `data_inicio` e `data_vencimento` da assinatura passaram a aceitar valores nulos (`Date | null`).
+- Essa alteração gerou incompatibilidade de tipos no arquivo `assinantes.service.ts`, pois as funções de formatação de datas e o método `.getTime()` esperavam objetos `Date`.
+- A situação foi identificada e corrigida com verificações condicionais, tratando datas nulas antes de realizar a formatação ou comparação.
+- Também foi necessário integrar os módulos administrativos à autenticação e à autorização por perfil de usuário.
+
+**Observações:**
+
+- Os testes do RF15 confirmaram o bloqueio de acesso para motoristas nas rotas administrativas, com resposta `403 Forbidden`.
+- A listagem administrativa retornou somente motoristas, com filtros e paginação funcionando.
+- As operações de ativação, suspensão e bloqueio foram testadas, preservando os dados dos usuários.
+- Os testes do RF16 confirmaram as validações de cadastro e edição, a proteção do histórico de assinaturas e o funcionamento da ativação e inativação de planos.
+- Os testes de acesso administrativo confirmaram que usuários sem perfil de administrador não conseguem acessar as operações restritas.
+- As funcionalidades foram validadas por meio de requisições no Postman e interface web.
+
 
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
