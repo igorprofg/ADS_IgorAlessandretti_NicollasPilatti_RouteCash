@@ -17,7 +17,10 @@ import { AssinaturasModule } from './assinaturas/assinaturas.module';
 import { PagamentosModule } from './pagamentos/pagamentos.module';
 import { AssinantesModule } from './assinantes/assinantes.module';
 import { PlanosAdminModule } from './planos-admin/planos-admin.module';
+import { AssinaturasAdminModule } from './assinaturas-admin/assinaturas-admin.module';
 import { AsaasModule } from './asaas/asaas.module';
+
+
 
 @Module({
   imports: [
@@ -41,6 +44,7 @@ import { AsaasModule } from './asaas/asaas.module';
     PagamentosModule,
     AssinantesModule,
     PlanosAdminModule,
+    AssinaturasAdminModule,
     AsaasModule,
   ],
 })

@@ -259,6 +259,22 @@ frontend/src/componentes/MenuLateral.tsx
 - A interface respeita a separação de acesso entre motoristas e administradores.
 - Os testes realizados indicaram funcionamento adequado das interfaces dos RF15 e RF16.
 
+### 18/11/2026 — Igor Alessandretti
+
+**O que foi feito:**
+- Criação das páginas administrativas `AssinaturasAdmin.tsx` e `DetalheAssinaturaAdmin.tsx` para o gerenciamento completo do RF17 na interface web.
+- Configuração das rotas protegidas por perfil administrativo em `Rotas.tsx` e adição do item "Assinaturas" no componente `MenuLateral.tsx`.
+- Desenvolvimento dos serviços de integração front-end (`assinaturas-admin.servico.ts`) e tipagens associadas para listagem, paginação, filtros por status, busca e ações de alteração de situação (suspender, reativar e cancelar).
+- Validação visual do painel administrativo, suporte a múltiplos temas e verificação de integridade com `npm run build` sem erros de compilação TypeScript.
+
+**Próximos passos:**
+- Integrar as telas e componentes visuais correspondentes ao RF18 (Acompanhamento de Pagamentos).
+
+**Dificuldades:**
+- Nenhuma dificuldade técnica relevante no front-end; os componentes integraram-se perfeitamente com a API estruturada pelo backend.
+
+**Observações:**
+- A interface exibe avisos contextuais sobre o vínculo com o Asaas e preserva visualmente o histórico de contratos e cancelamentos dos motoristas.
 
 
 <!-- Próxima entrada: copiar o modelo abaixo -->

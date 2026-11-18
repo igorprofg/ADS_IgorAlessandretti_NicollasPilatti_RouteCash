@@ -17,6 +17,7 @@ const ITENS: ItemMenu[] = [
   { caminho: '/pagamentos', rotulo: 'Pagamentos', apenas: 'MOTORISTA' },
   { caminho: '/admin/assinantes', rotulo: 'Assinantes', apenas: 'ADMINISTRADOR' },
   { caminho: '/admin/planos', rotulo: 'Planos', apenas: 'ADMINISTRADOR' },
+  { caminho: '/admin/assinaturas', rotulo: 'Assinaturas', apenas: 'ADMINISTRADOR' },
 ];
 interface MenuLateralProps {
   aberto: boolean; // só faz diferença em telas pequenas (menu vira gaveta)

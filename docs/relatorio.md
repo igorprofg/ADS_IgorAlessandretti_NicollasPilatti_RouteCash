@@ -907,6 +907,23 @@ backend/src/app.module.ts
 - As funcionalidades foram validadas por meio de requisições no Postman e interface web.
 
 
+### 18/11/2026 — Igor Alessandretti
+**O que foi feito:**
+- Implementação completa do módulo administrativo `assinaturas-admin` (RF17), contendo controller, service, DTOs de consulta e serialização customizada para o acompanhamento e controle de assinaturas pelo painel do administrador.
+- Criação das rotas protegidas por `JwtAuthGuard` e `AdministradorGuard` para listagem com paginação e busca *case-insensitive* (por nome do usuário, e-mail ou nome do plano), filtros por situação (`PENDENTE`, `ATIVA`, `SUSPENSA`, `CANCELADA`), além de endpoints de detalhamento, suspensão, reativação e cancelamento.
+- Aplicação de regras de negócio estritas para preservação do histórico financeiro e prevenção de concorrência (ex: restrição de reativação caso o usuário possua outra assinatura em aberto).
+- Proteção da rota de contratação manual (`POST /assinaturas`) adicionando o `AdministradorGuard` para impedir que motoristas criem assinaturas ativas sem passar pelo fluxo de pagamento do Asaas.
+
+**Próximos passos:**
+- Avançar para a implementação do RF18 (Registro e Acompanhamento de Pagamentos pelo Administrador).
+- Alinhar com o Nicollas a finalização do Webhook do Asaas para testes de ponta a ponta com assinaturas pendentes e vínculos externos.
+
+**Dificuldades:**
+- Validação inicial do fluxo de assinaturas pendentes via Asaas, que exige a integração completa do gateway e o webhook de confirmação de pagamento para gerar registros com status `PENDENTE`.
+
+**Observações:**
+- O histórico de cancelamentos é totalmente preservado (`data_cancelamento`), garantindo a integridade dos dados e auditoria para o administrador.
+
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--
