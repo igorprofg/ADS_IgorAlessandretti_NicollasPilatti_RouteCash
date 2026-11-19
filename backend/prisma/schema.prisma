@@ -76,6 +76,7 @@ enum SituacaoPagamento {
   PAGO
   PENDENTE
   VENCIDO
+  CANCELADO
 }
 
 // ============================================

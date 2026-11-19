@@ -19,6 +19,7 @@ import { AssinantesModule } from './assinantes/assinantes.module';
 import { PlanosAdminModule } from './planos-admin/planos-admin.module';
 import { AssinaturasAdminModule } from './assinaturas-admin/assinaturas-admin.module';
 import { AsaasModule } from './asaas/asaas.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 
 
@@ -46,6 +47,7 @@ import { AsaasModule } from './asaas/asaas.module';
     PlanosAdminModule,
     AssinaturasAdminModule,
     AsaasModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}
