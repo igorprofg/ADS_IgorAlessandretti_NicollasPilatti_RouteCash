@@ -18,6 +18,7 @@ import { PagamentosModule } from './pagamentos/pagamentos.module';
 import { AssinantesModule } from './assinantes/assinantes.module';
 import { PlanosAdminModule } from './planos-admin/planos-admin.module';
 import { AssinaturasAdminModule } from './assinaturas-admin/assinaturas-admin.module';
+import { PagamentosAdminModule } from './pagamentos-admin/pagamentos-admin.module';
 import { AsaasModule } from './asaas/asaas.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 
@@ -46,6 +47,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     AssinantesModule,
     PlanosAdminModule,
     AssinaturasAdminModule,
+    PagamentosAdminModule,
     AsaasModule,
     WebhooksModule,
   ],

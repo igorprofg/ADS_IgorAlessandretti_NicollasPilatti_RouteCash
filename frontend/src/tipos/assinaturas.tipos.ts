@@ -31,7 +31,7 @@ export interface Assinatura {
   plano: PlanoResumo;
 }
 
-export type SituacaoPagamento = 'PAGO' | 'PENDENTE' | 'VENCIDO';
+export type SituacaoPagamento = 'PAGO' | 'PENDENTE' | 'VENCIDO' | 'CANCELADO';
 
 // Resposta de GET /pagamentos
 export interface Pagamento {

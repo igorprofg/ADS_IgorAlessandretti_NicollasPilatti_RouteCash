@@ -60,5 +60,7 @@ export function etiquetaPagamento(situacao: SituacaoPagamento): DadosEtiqueta {
       return { texto: 'Vencido', tipo: 'negativo' };
     default:
       return { texto: 'Pendente', tipo: 'neutro' };
+    case 'CANCELADO':
+      return { texto: 'Cancelado', tipo: 'neutro' };
   }
 }

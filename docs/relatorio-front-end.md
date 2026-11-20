@@ -276,6 +276,24 @@ frontend/src/componentes/MenuLateral.tsx
 **Observações:**
 - A interface exibe avisos contextuais sobre o vínculo com o Asaas e preserva visualmente o histórico de contratos e cancelamentos dos motoristas.
 
+### 20/11/2026 — Igor Alessandretti
+
+**O que foi feito:**
+- Implementadas as telas administrativas de gerenciamento de pagamentos (`PagamentosAdmin.tsx` e `FormularioPagamento.tsx`) para atender ao RF18 (HU52, HU53 e HU54).
+- Criados os arquivos de tipagem (`pagamentos-admin.tipos.ts`), integração com a API (`pagamentos-admin.servico.ts`) e constantes de situação (`rotulos-pagamentos.ts`), além da atualização do tipo `SituacaoPagamento` e da função `etiquetaPagamento` para suportar o status `CANCELADO`.
+- Configuradas as rotas `/admin/pagamentos` e `/admin/pagamentos/novo` no `Rotas.tsx` (restritas a administradores) e adicionado o item "Pagamentos" no `MenuLateral.tsx`.
+- Implementado no formulário de registro a busca de assinaturas manuais (ocultando assinaturas de origem `ASAAS`), preenchimento automático do valor do plano selecionado e exibição condicional do campo de data de pagamento apenas para a situação `PAGO`.
+- Implementada na listagem administrativa a busca por assinante/plano, filtro por situação, paginação, exibição da etiqueta `Em atraso`, modal de confirmação para atualização de situação e bloqueio visual (`Gerenciado pelo Asaas`) para pagamentos originados pelo gateway.
+- Validados os fluxos na interface web (admin e visão do motorista em `/pagamentos`), temas e build de produção com `npm run build`.
+
+**Próximos passos:**
+- Desenvolver as telas e indicadores administrativos do RF19 (Consulta de Indicadores do Sistema).
+
+**Dificuldades:**
+- Garantir o tratamento correto da nova situação `CANCELADO` nos rótulos compartilhados entre a visão administrativa e a visão do motorista, além de alinhar as assinaturas do serviço de pagamentos no frontend.
+
+**Observações:**
+- Build do frontend (`tsc -b && vite build`) executado e aprovado sem erros após a conclusão dos testes do RF18.
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 

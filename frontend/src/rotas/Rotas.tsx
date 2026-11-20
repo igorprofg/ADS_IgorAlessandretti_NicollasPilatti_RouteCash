@@ -16,6 +16,8 @@ import PlanosAdmin from '../paginas/admin/planos/PlanosAdmin';
 import FormularioPlano from '../paginas/admin/planos/FormularioPlano';
 import AssinaturasAdmin from '../paginas/admin/assinaturas/AssinaturasAdmin';
 import DetalheAssinaturaAdmin from '../paginas/admin/assinaturas/DetalheAssinaturaAdmin';
+import PagamentosAdmin from '../paginas/admin/pagamentos/PagamentosAdmin';
+import FormularioPagamento from '../paginas/admin/pagamentos/FormularioPagamento';
 
 export default function Rotas() {
   return (
@@ -45,6 +47,8 @@ export default function Rotas() {
             <Route path="/admin/planos/:id/editar" element={<FormularioPlano />} />
             <Route path="/admin/assinaturas" element={<AssinaturasAdmin />} />
             <Route path="/admin/assinaturas/:id" element={<DetalheAssinaturaAdmin />} />
+            <Route path="/admin/pagamentos" element={<PagamentosAdmin />} />
+            <Route path="/admin/pagamentos/novo" element={<FormularioPagamento />} />
           </Route>
         </Route>
       </Route>

@@ -924,6 +924,26 @@ backend/src/app.module.ts
 **Observações:**
 - O histórico de cancelamentos é totalmente preservado (`data_cancelamento`), garantindo a integridade dos dados e auditoria para o administrador.
 
+### 20/11/2026 — Igor Alessandretti
+**O que foi feito:**
+- Implementado o módulo administrativo de pagamentos (`pagamentos-admin`) para atender ao RF18 (HU52, HU53 e HU54), com rotas protegidas por `JwtAuthGuard` e `AdministradorGuard` em `/admin/pagamentos`.
+- Criados o `PagamentosAdminController`, o `PagamentosAdminService`, o `PagamentosAdminModule` e os DTOs `RegistrarPagamentoDto`, `AtualizarSituacaoPagamentoDto` e `ConsultarPagamentosDto`, além do registro do módulo no `AppModule`.
+- Implementadas as regras de negócio para registro manual de pagamentos (situação padrão `PENDENTE`, validação de datas e valores, preenchimento automático da data atual quando criado como `PAGO`, bloqueio de data futura ou fora de `PAGO` e prevenção de duplicidade na mesma assinatura e vencimento).
+- Implementada a listagem paginada com busca por usuário (nome ou e-mail) ou plano, filtro por situação (`PAGO`, `PENDENTE`, `VENCIDO`, `CANCELADO`) ou assinatura, cálculo dinâmico de `em_atraso` para cobranças pendentes vencidas e identificação de `origem` (`MANUAL` ou `ASAAS`) com base em `asaas_payment_id`.
+- Implementada a trava de proteção contra registro manual em assinaturas de origem `ASAAS` e contra alteração manual de situação em pagamentos vinculados ao Asaas (`409 Conflict`), preservando o histórico financeiro sem exclusão ou edição de valor/vencimento.
+- Validados todos os cenários da API no Postman (permissões por perfil, criações válidas, validações de erro 400/404/409, filtros, cálculo de atraso, atualização de situação, bloqueio de registros do Asaas e reflexo na consulta do motorista em `GET /pagamentos`).
+
+**Próximos passos:**
+- Implementar o RF19 (Consulta de Indicadores do Sistema / Dashboard do Administrador).
+- Alinhar posteriormente a implementação do controle de acesso por assinatura ativa (`AssinaturaAtivaGuard`) nas rotas protegidas do motorista e o comportamento offline no aplicativo.
+
+**Dificuldades:**
+- Necessidade de sincronizar a migration `adicionar_pagamento_cancelado` e regenerar o Prisma Client para reconhecer a situação `CANCELADO` nos tipos do backend, além de alinhar a divisão entre pagamentos manuais do painel e pagamentos automáticos gerenciados pelo webhook do Asaas.
+
+**Observações:**
+- O RF18 não altera automaticamente a situação da assinatura ao registrar pagamentos manuais (responsabilidade tratada no RF17) e não aplica bloqueio automático de rotas por inadimplência, que será tratado em etapa posterior.
+
+
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--
