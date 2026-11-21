@@ -944,6 +944,30 @@ backend/src/app.module.ts
 - O RF18 não altera automaticamente a situação da assinatura ao registrar pagamentos manuais (responsabilidade tratada no RF17) e não aplica bloqueio automático de rotas por inadimplência, que será tratado em etapa posterior.
 
 
+### 20/11/2026 — Igor Alessandretti
+
+**O que foi feito:**
+
+- Implementado o módulo de indicadores administrativos (`indicadores-admin`) para atender ao RF19 (HU55 e HU56), expondo o endpoint `GET /admin/indicadores?inicio=&fim=` restrito a administradores (`403` para motoristas).
+- Criados o `IndicadoresAdminController`, o `IndicadoresAdminService`, o `IndicadoresAdminModule` e o DTO `ConsultarIndicadoresAdminDto`, além do registro do módulo no `AppModule`.
+- Implementada a consulta agregada e somente leitura dos indicadores: total de usuários cadastrados (considerando apenas motoristas), assinaturas agrupadas por situação (`PENDENTE`, `ATIVA`, `SUSPENSA`, `CANCELADA`), pagamentos por situação com quantidade e valor (`pendentes`, `vencidos`, `pagos`, `cancelados`), receita registrada e série de receita mensal com meses zerados.
+- Implementado o filtro por período (`HU56`) com validação de datas (exigência de `inicio` e `fim` juntos, formato `AAAA-MM-DD`, datas reais, `fim >= inicio` e limite máximo de `366` dias) e aplicação das datas de referência de cada indicador (cadastro para usuários/assinaturas, vencimento para pendentes/vencidos/cancelados e pagamento para pagos/receita).
+- Validados todos os cenários da API no Postman (permissão `403` para motorista, consulta sem período, filtro por período válido, erros `400` de período e cruzamento com RF17/RF18 e cadastro de motorista).
+
+**Próximos passos:**
+
+- Alinhar e avançar nas definições e integrações do Asaas com o Nícollas.
+- Realizar em etapa futura os testes gerais, a preparação da apresentação e o deploy na AWS.
+
+**Dificuldades:**
+
+- Garantir o alinhamento correto das datas de referência para cada tipo de indicador no filtro por período e o preenchimento dos meses sem receita na série mensal sem alterar dados do banco.
+
+**Observações:**
+
+- A implementação do RF19 não exigiu novas migrations nem novas dependências e funciona como consulta somente leitura.
+
+
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--

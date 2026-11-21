@@ -295,6 +295,30 @@ frontend/src/componentes/MenuLateral.tsx
 **Observações:**
 - Build do frontend (`tsc -b && vite build`) executado e aprovado sem erros após a conclusão dos testes do RF18.
 
+
+### 20/11/2026 — Igor Alessandretti
+
+**O que foi feito:**
+
+- Implementada a tela administrativa de indicadores (`IndicadoresAdmin.tsx`) e o componente `GraficoBarras.tsx`, junto com os arquivos de tipagem (`indicadores-admin.tipos.ts`) e serviço (`indicadores-admin.servico.ts`) para o RF19 (HU55 e HU56).
+- Configurada a rota `/admin/indicadores` em `Rotas.tsx` (no bloco de rota de administrador) e adicionado o item `Indicadores` no `MenuLateral.tsx`.
+- Implementados os filtros de período (`Todo o período`, `Este mês`, `Últimos 30 dias` e `Personalizado`) com validação de datas, cartão de receita registrada, cartões de assinaturas e pagamentos, e os três gráficos de barras (assinaturas por situação, pagamentos por situação e receita por mês) reaproveitando os estilos do dashboard.
+- Validados na interface web a atualização dinâmica dos indicadores, os filtros, os gráficos nos dois temas e a compilação com `npm run build`.
+
+**Próximos passos:**
+
+- Acompanhar as definições do fluxo/checkout e regras de acesso com o Nícollas.
+- Executar em momento posterior os testes gerais, a organização da apresentação e o deploy na AWS.
+
+**Dificuldades:**
+
+- Ajustar a apresentação dos dados nos gráficos de barras e nos cartões para manter a legibilidade nos dois temas e refletir os meses sem receita zerados.
+
+**Observações:**
+
+- O build de produção (`tsc -b && vite build`) concluiu sem erros após a implementação e os testes do RF19.
+
+
 <!-- Próxima entrada: copiar o modelo abaixo -->
 
 <!--

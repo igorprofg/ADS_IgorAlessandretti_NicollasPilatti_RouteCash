@@ -18,6 +18,7 @@ import AssinaturasAdmin from '../paginas/admin/assinaturas/AssinaturasAdmin';
 import DetalheAssinaturaAdmin from '../paginas/admin/assinaturas/DetalheAssinaturaAdmin';
 import PagamentosAdmin from '../paginas/admin/pagamentos/PagamentosAdmin';
 import FormularioPagamento from '../paginas/admin/pagamentos/FormularioPagamento';
+import IndicadoresAdmin from '../paginas/admin/indicadores/IndicadoresAdmin';
 
 export default function Rotas() {
   return (
@@ -49,6 +50,7 @@ export default function Rotas() {
             <Route path="/admin/assinaturas/:id" element={<DetalheAssinaturaAdmin />} />
             <Route path="/admin/pagamentos" element={<PagamentosAdmin />} />
             <Route path="/admin/pagamentos/novo" element={<FormularioPagamento />} />
+            <Route path="/admin/indicadores" element={<IndicadoresAdmin />} />
           </Route>
         </Route>
       </Route>

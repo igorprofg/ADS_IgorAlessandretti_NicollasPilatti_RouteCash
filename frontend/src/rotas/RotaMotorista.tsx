@@ -7,7 +7,7 @@ export default function RotaMotorista() {
   const { usuario } = useAutenticacao();
 
   if (usuario?.tipo_usuario === 'ADMINISTRADOR') {
-    return <Navigate to="/admin/assinantes" replace />;
+    return <Navigate to="/admin/indicadores" replace />;
   }
   return <Outlet />;
 }
