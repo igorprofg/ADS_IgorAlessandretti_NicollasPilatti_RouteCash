@@ -35,6 +35,15 @@ import '../../journeys/providers/journey_providers.dart';
 
 import '../../sync/providers/sync_providers.dart';
 import '../../../core/database/app_database.dart';
+import '../../subscriptions/providers/subscription_providers.dart';
+import '../../subscriptions/services/offline_authorization_service.dart';
+
+final _autorizacaoLocalProvider = FutureProvider<DateTime?>((ref) {
+  return OfflineAuthorizationService.expiracaoLocalValida().timeout(
+    const Duration(seconds: 5),
+    onTimeout: () => null,
+  );
+});
 
 enum _PeriodType { day, week, month, year }
 
@@ -58,6 +67,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   StreamSubscription<void>? _syncSubscription;
   Timer? _jornadaTimer;
+  Timer? _autorizacaoOfflineTimer;
 
   _LocalFinancialIndicators? _indicadores;
   bool _carregandoIndicadores = false;
@@ -83,11 +93,24 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       autoSync.start();
 
+      // Obtém autorização assinada ao entrar na Home. Em falha de rede,
+      // a concessão previamente validada permanece disponível.
+      unawaited(_renovarAutorizacaoExibirStatus());
+
+      // Renovação periódica enquanto o aplicativo estiver aberto.
+      _autorizacaoOfflineTimer?.cancel();
+      _autorizacaoOfflineTimer = Timer.periodic(
+        const Duration(minutes: 15),
+        (_) => unawaited(_renovarAutorizacaoExibirStatus()),
+      );
+
       _syncSubscription = autoSync.onSynced.listen((_) async {
         if (!mounted) {
           return;
         }
 
+        ref.invalidate(assinaturaAtualProvider);
+        unawaited(_renovarAutorizacaoExibirStatus());
         await _recarregarDashboardLocal();
       });
 
@@ -95,10 +118,17 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
   }
 
+  Future<void> _renovarAutorizacaoExibirStatus() async {
+    await OfflineAuthorizationService.renovarSilenciosamente();
+    if (!mounted) return;
+    ref.invalidate(_autorizacaoLocalProvider);
+  }
+
   @override
   void dispose() {
     _syncSubscription?.cancel();
     _jornadaTimer?.cancel();
+    _autorizacaoOfflineTimer?.cancel();
     super.dispose();
   }
 
@@ -970,8 +1000,15 @@ class _HomePageState extends ConsumerState<HomePage> {
     // mas NÃO apaga o arquivo.
     await AppDatabase.instance.releaseUser();
 
+    // Remove a concessão offline desta conta ao fazer logout.
+    await OfflineAuthorizationService.limparUsuarioAtual();
+
     // Remove token e identificação da sessão.
     await SecureStorage.clearSession();
+
+    // Evita manter a assinatura da sessão anterior em cache.
+    ref.invalidate(assinaturaAtualProvider);
+    ref.invalidate(_autorizacaoLocalProvider);
 
     if (!mounted) {
       return;
@@ -1259,10 +1296,15 @@ class _HomePageState extends ConsumerState<HomePage> {
           ? _buildErro()
           : RefreshIndicator(
               onRefresh: () async {
-                final autoSync = ref.read(syncAutoServiceProvider);
+                // A leitura da assinatura é independente do AutoSync.
+                // O endpoint de download pode retornar 200 mesmo sem plano.
+                ref.invalidate(assinaturaAtualProvider);
+                await _renovarAutorizacaoExibirStatus();
 
+                final autoSync = ref.read(syncAutoServiceProvider);
                 await autoSync.tryNow(forceFullSync: true);
 
+                if (!mounted) return;
                 await _recarregarDashboardLocal();
               },
               child: SingleChildScrollView(
@@ -1271,6 +1313,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildStatusAssinatura(),
+
+                    const SizedBox(height: 12),
+
                     _buildResumo(),
 
                     const SizedBox(height: 18),
@@ -2293,6 +2339,135 @@ class _HomePageState extends ConsumerState<HomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStatusAssinatura() {
+    final assinaturaAsync = ref.watch(assinaturaAtualProvider);
+    final expiracaoAsync = ref.watch(_autorizacaoLocalProvider);
+    final DateTime? expiracao = expiracaoAsync.asData?.value;
+    final offlineValido =
+        expiracao != null && expiracao.isAfter(DateTime.now());
+    final tema = Theme.of(context);
+
+    Widget cardOffline() {
+      final prazo = expiracao!;
+      final restante = prazo.difference(DateTime.now());
+      final dias = restante.inDays;
+      final horas = restante.inHours.remainder(24);
+      return Card(
+        child: ListTile(
+          leading: const Icon(Icons.shield_outlined, color: Colors.green),
+          title: const Text(
+            'Modo offline autorizado',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          subtitle: Text(
+            'Você pode continuar lançando dados sem internet. '
+            'Revalide sua assinatura em ${dias}d ${horas}h. '
+            'Prazo: ${prazo.toLocal().day.toString().padLeft(2, '0')}/'
+            '${prazo.toLocal().month.toString().padLeft(2, '0')}/'
+            '${prazo.toLocal().year}.',
+          ),
+          trailing: IconButton(
+            tooltip: 'Tentar verificar novamente',
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              ref.invalidate(assinaturaAtualProvider);
+              unawaited(_renovarAutorizacaoExibirStatus());
+            },
+          ),
+        ),
+      );
+    }
+
+    return assinaturaAsync.when(
+      loading: () {
+        if (offlineValido) return cardOffline();
+        // A consulta online tem limite de 8 segundos no provider.
+        // Não bloqueia a visualização dos registros locais enquanto isso.
+        return const Card(
+          child: ListTile(
+            leading: Icon(Icons.sync_outlined),
+            title: Text('Consultando assinatura...'),
+            subtitle: Text(
+              'Aguardando resposta do servidor. Seus dados locais '
+              'continuam disponíveis para consulta.',
+            ),
+          ),
+        );
+      },
+      error: (_, __) {
+        if (offlineValido) return cardOffline();
+        return Card(
+          child: ListTile(
+            leading: Icon(
+              Icons.wifi_off_outlined,
+              color: tema.colorScheme.error,
+            ),
+            title: const Text('Sem conexão para validar a assinatura'),
+            subtitle: const Text(
+              'Não há autorização offline válida neste aparelho. '
+              'Conecte-se para renovar; seus dados existentes estão preservados.',
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                ref.invalidate(assinaturaAtualProvider);
+                unawaited(_renovarAutorizacaoExibirStatus());
+              },
+            ),
+          ),
+        );
+      },
+      data: (assinatura) {
+        final situacao = assinatura?['situacao']?.toString().toUpperCase();
+        // Resposta online explícita de assinatura inativa prevalece sobre cache.
+        final ativa = situacao == 'ATIVA' && assinatura?['vencida'] != true;
+        final titulo = switch (situacao) {
+          'ATIVA' when assinatura?['vencida'] == true => 'Assinatura vencida',
+          'ATIVA' => 'Assinatura ativa',
+          'PENDENTE' => 'Pagamento pendente',
+          'SUSPENSA' => 'Assinatura suspensa',
+          'CANCELADA' => 'Assinatura cancelada',
+          null => 'Nenhuma assinatura encontrada',
+          _ => 'Situação da assinatura: $situacao',
+        };
+        return Card(
+          child: ListTile(
+            leading: Icon(
+              ativa
+                  ? Icons.verified_outlined
+                  : Icons.workspace_premium_outlined,
+              color: ativa ? Colors.green : Colors.orange,
+            ),
+            title: Text(
+              titulo,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(
+              ativa
+                  ? (offlineValido
+                        ? 'Autorização offline válida até '
+                              '${expiracao.toLocal().day.toString().padLeft(2, '0')}/'
+                              '${expiracao.toLocal().month.toString().padLeft(2, '0')}/'
+                              '${expiracao.toLocal().year}. '
+                              'Se ficar sem internet, os lançamentos continuam disponíveis até esse prazo.'
+                        : 'Assinatura ativa. Preparando autorização offline; '
+                              'confira a chave pública e a conexão caso não seja emitida.')
+                  : 'Seus registros anteriores estão preservados. '
+                        'É necessária uma assinatura válida para novos lançamentos.',
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                ref.invalidate(assinaturaAtualProvider);
+                unawaited(_renovarAutorizacaoExibirStatus());
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }

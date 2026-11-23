@@ -16,8 +16,9 @@ import { FinalizarJornadaDto } from './dto/finalizar-jornada.dto';
 import { AtualizarJornadaDto } from './dto/atualizar-jornada.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UsuarioAtual } from '../common/decorators/usuario-atual.decorator';
+import { AssinaturaAtivaGuard } from '../common/guards/assinatura-ativa.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AssinaturaAtivaGuard)
 @Controller('jornadas')
 export class JornadasController {
   constructor(private readonly jornadasService: JornadasService) {}

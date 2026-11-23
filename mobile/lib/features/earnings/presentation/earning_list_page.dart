@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/platform_icon.dart';
 import '../../sync/providers/sync_providers.dart';
+import '../../subscriptions/services/subscription_access_service.dart';
 import '../data/earning.dart';
 import '../providers/earning_providers.dart';
 import 'earning_form_page.dart';
@@ -63,6 +64,9 @@ class _EarningListPageState extends ConsumerState<EarningListPage> {
   }
 
   Future<void> _createEarning() async {
+    final permitido = await SubscriptionAccessService.verificar(ref, context);
+    if (!permitido || !mounted) return;
+
     final updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (context) => const EarningFormPage()),
@@ -78,6 +82,9 @@ class _EarningListPageState extends ConsumerState<EarningListPage> {
   }
 
   Future<void> _editEarning(Earning earning) async {
+    final permitido = await SubscriptionAccessService.verificar(ref, context);
+    if (!permitido || !mounted) return;
+
     final updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -95,6 +102,9 @@ class _EarningListPageState extends ConsumerState<EarningListPage> {
   }
 
   Future<void> _duplicateEarning(Earning earning) async {
+    final permitido = await SubscriptionAccessService.verificar(ref, context);
+    if (!permitido || !mounted) return;
+
     final updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -113,6 +123,9 @@ class _EarningListPageState extends ConsumerState<EarningListPage> {
   }
 
   Future<void> _deleteEarning(Earning earning) async {
+    final permitido = await SubscriptionAccessService.verificar(ref, context);
+    if (!permitido || !mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -145,6 +158,14 @@ class _EarningListPageState extends ConsumerState<EarningListPage> {
     if (confirmed != true || !mounted) {
       return;
     }
+
+    // Revalida depois da confirmação para evitar exclusão
+    // caso a assinatura deixe de estar válida nesse intervalo.
+    final permitidoAoExcluir = await SubscriptionAccessService.verificar(
+      ref,
+      context,
+    );
+    if (!permitidoAoExcluir || !mounted) return;
 
     try {
       final repository = ref.read(syncRepositoryProvider);

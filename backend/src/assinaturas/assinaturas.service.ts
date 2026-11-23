@@ -1,10 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
+  InternalServerErrorException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+
+import { createPrivateKey, randomUUID, sign } from 'node:crypto';
 
 import {
   OrigemAssinatura,
@@ -589,6 +593,109 @@ export class AssinaturasService {
       checkout_reutilizado:
         false,
     };
+  }
+
+  // ============================================
+  // AUTORIZAÇÃO OFFLINE - ATÉ 7 DIAS
+  // ============================================
+  // Requer assinatura ATIVA com período vigente.
+  // A autorização é assinada com Ed25519 (PKCS#8 DER).
+  // O app deve verificar a assinatura com a chave pública
+  // incorporada ao aplicativo, sem confiar só no JSON.
+  // A chave privada nunca deve ser enviada ao mobile.
+
+  async emitirAutorizacaoOffline(usuarioId: string) {
+    const hoje = hojeComoData();
+
+    // Mesma regra de elegibilidade usada no guard.
+    const assinatura = await this.prisma.assinatura.findFirst({
+      where: {
+        id_usuario: usuarioId,
+        situacao: SituacaoAssinatura.ATIVA,
+        data_inicio: { lte: hoje },
+        data_vencimento: { gte: hoje },
+      },
+      orderBy: { data_cadastro: 'desc' },
+    });
+
+    if (!assinatura?.data_vencimento) {
+      throw new ForbiddenException({
+        codigo: 'ASSINATURA_NECESSARIA',
+        mensagem: 'Não há assinatura ativa e vigente para autorizar uso offline.',
+      });
+    }
+
+    const chaveB64 = process.env.OFFLINE_SIGNING_PRIVATE_KEY_B64;
+    if (!chaveB64) {
+      throw new InternalServerErrorException(
+        'Emissão offline indisponível: chave de assinatura não configurada.',
+      );
+    }
+
+    const agora = new Date();
+    const seteDias = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // data_vencimento é uma data de calendário inclusiva.
+    // Mantém o uso até o fim desse dia em UTC, sem estender
+    // a autorização para uma renovação ainda não confirmada.
+    const vencimento = assinatura.data_vencimento;
+    const fimDiaVencimento = new Date(Date.UTC(
+      vencimento.getUTCFullYear(),
+      vencimento.getUTCMonth(),
+      vencimento.getUTCDate() + 1,
+    ) - 1);
+
+    const expiracao = new Date(Math.min(
+      seteDias.getTime(),
+      fimDiaVencimento.getTime(),
+    ));
+
+    if (expiracao.getTime() <= agora.getTime()) {
+      throw new ForbiddenException({
+        codigo: 'ASSINATURA_NECESSARIA',
+        mensagem: 'O período de assinatura não permite nova autorização offline.',
+      });
+    }
+
+    const payload = {
+      v: 1,
+      typ: 'routecash-offline',
+      sub: usuarioId,
+      sid: assinatura.id_assinatura,
+      iat: Math.floor(agora.getTime() / 1000),
+      exp: Math.floor(expiracao.getTime() / 1000),
+      jti: randomUUID(),
+    };
+
+    try {
+      const chavePrivada = createPrivateKey({
+        key: Buffer.from(chaveB64, 'base64'),
+        format: 'der',
+        type: 'pkcs8',
+      });
+
+      if (chavePrivada.asymmetricKeyType !== 'ed25519') {
+        throw new Error('Tipo de chave inválido: esperado Ed25519');
+      }
+
+      const conteudo = Buffer.from(JSON.stringify(payload))
+        .toString('base64url');
+      const assinaturaDigital = sign(null, Buffer.from(conteudo), chavePrivada)
+        .toString('base64url');
+
+      return {
+        autorizado: true,
+        situacao: 'ATIVA',
+        emitido_em: agora.toISOString(),
+        expira_em: expiracao.toISOString(),
+        token_offline: `${conteudo}.${assinaturaDigital}`,
+      };
+    } catch (erro) {
+      // Não exponha a chave privada nem detalhes criptográficos.
+      throw new InternalServerErrorException(
+        'Falha ao emitir autorização offline.',
+      );
+    }
   }
 
   // ============================================

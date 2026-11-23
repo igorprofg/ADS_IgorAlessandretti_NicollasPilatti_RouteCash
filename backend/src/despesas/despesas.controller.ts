@@ -13,8 +13,9 @@ import { CriarDespesaDto } from './dto/criar-despesa.dto';
 import { AtualizarDespesaDto } from './dto/atualizar-despesa.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UsuarioAtual } from '../common/decorators/usuario-atual.decorator';
+import { AssinaturaAtivaGuard } from '../common/guards/assinatura-ativa.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AssinaturaAtivaGuard)
 @Controller('despesas')
 export class DespesasController {
   constructor(private readonly despesasService: DespesasService) {}

@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
+
+import '../data/sync_assinatura_exception.dart';
 import '../data/sync_item_result.dart';
 import '../data/sync_local_repository.dart';
 import '../data/sync_outbox_item.dart';
 import '../data/sync_repository.dart';
-import 'package:flutter/foundation.dart';
 
 class SyncManager {
   final SyncRepository remoteRepository;
@@ -14,52 +16,96 @@ class SyncManager {
 
   bool get running => _running;
 
+  // ------------------------------------------------------------
+  // SINCRONIZAÇÃO COMPLETA
+  // ------------------------------------------------------------
+
   Future<void> syncNow() async {
     if (_running) {
+      debugPrint('[SYNC] Sincronização já está em andamento.');
       return;
     }
 
     _running = true;
 
     try {
+      debugPrint('[SYNC] Iniciando sincronização.');
+
       // 1ª etapa:
-      // envia tudo que já está pendente.
+      // Envia os registros pendentes para o servidor.
       await _sendPending();
 
-      // Atualiza os caches com o estado
-      // realmente existente no servidor.
+      // 2ª etapa:
+      // Baixa o snapshot e reconcilia com o SQLite.
       await _downloadAndReconcile();
 
-      // Alguns itens podem ter ficado em atenção
-      // porque uma dependência ainda não existia.
+      // 3ª etapa:
+      // Verifica se alguma dependência foi resolvida.
       //
       // Exemplo:
-      // veículo falhou -> ganho falhou.
+      // Um ganho estava em atenção porque o veículo
+      // ainda não existia no servidor.
       //
-      // Se o veículo agora já está confirmado pelo
-      // snapshot, o ganho pode voltar para pendente.
+      // Se o veículo agora estiver confirmado no snapshot,
+      // o ganho poderá voltar para pendente.
+
       final requeued = await localRepository
           .requeueResolvedDependencyAttention();
 
       if (requeued > 0) {
         debugPrint(
-          '[SYNC] $requeued item(ns) '
-          'voltaram de atenção para pendente '
-          'após resolução das dependências.',
+          '[SYNC] $requeued item(ns) voltaram '
+          'de atenção para pendente.',
         );
 
-        // 2ª etapa:
-        // tenta imediatamente os itens recuperados.
+        // 4ª etapa:
+        // Tenta enviar os itens recuperados.
         await _sendPending();
 
-        // E atualiza novamente o SQLite com
-        // o resultado final do servidor.
+        // 5ª etapa:
+        // Atualiza novamente o SQLite com
+        // o estado final do servidor.
         await _downloadAndReconcile();
       }
+
+      debugPrint('[SYNC] Sincronização concluída.');
+    } on SyncAssinaturaException {
+      // O backend recusou o envio porque
+      // não existe assinatura ativa e válida.
+      //
+      // Nenhum resultado desse envio será aplicado.
+      // Os itens não confirmados permanecem
+      // armazenados na sync_outbox.
+      //
+      // A exceção será propagada para que
+      // o SyncAutoService possa pausar
+      // novas tentativas automáticas.
+
+      debugPrint(
+        '[SYNC] Sincronização bloqueada: '
+        'assinatura inativa.',
+      );
+
+      debugPrint(
+        '[SYNC] Registros não confirmados '
+        'permanecem pendentes no SQLite.',
+      );
+
+      rethrow;
+    } catch (e, stackTrace) {
+      debugPrint('[SYNC] Erro durante a sincronização: $e');
+
+      debugPrintStack(stackTrace: stackTrace);
+
+      rethrow;
     } finally {
       _running = false;
     }
   }
+
+  // ------------------------------------------------------------
+  // DOWNLOAD E RECONCILIAÇÃO
+  // ------------------------------------------------------------
 
   Future<void> downloadAndReconcile() async {
     if (_running) {
@@ -75,7 +121,13 @@ class SyncManager {
     }
   }
 
+  // ------------------------------------------------------------
+  // ENVIO DA OUTBOX
+  // ------------------------------------------------------------
+
   Future<void> _sendPending() async {
+    // Evita tentar o mesmo item repetidamente
+    // durante uma única execução.
     final attempted = <String>{};
 
     while (true) {
@@ -89,7 +141,10 @@ class SyncManager {
         return;
       }
 
-      // Ordem obrigatória do RF11.
+      // Ordem obrigatória do RF11:
+      // veículos, plataformas, ganhos,
+      // despesas, jornadas e exclusões.
+
       final vehicles = _takeEntity(
         available,
         entidade: 'veiculo',
@@ -120,8 +175,9 @@ class SyncManager {
         operacao: 'upsert',
       );
 
-      // Veículo e plataforma NUNCA entram
-      // em exclusoes.
+      // Somente ganhos, despesas e jornadas
+      // podem entrar como exclusões.
+
       final deletions = available
           .where(
             (item) =>
@@ -153,6 +209,20 @@ class SyncManager {
 
       attempted.addAll(sentItems.map(_key));
 
+      debugPrint(
+        '[SYNC] Enviando ${sentItems.length} '
+        'item(ns) pendente(s).',
+      );
+
+      // Se o servidor retornar HTTP 403
+      // com ASSINATURA_NECESSARIA,
+      // o SyncRepository lança
+      // SyncAssinaturaException.
+      //
+      // Assim, o processamento será interrompido
+      // antes de remover qualquer item
+      // desse lote da outbox.
+
       final results = await remoteRepository.enviar(
         veiculos: vehicles.map((item) => item.payload!).toList(),
         plataformas: platforms.map((item) => item.payload!).toList(),
@@ -163,6 +233,9 @@ class SyncManager {
             .map((item) => {'entidade': item.entidade, 'id': item.registroId})
             .toList(),
       );
+
+      // Registra os resultados retornados
+      // pelo servidor.
 
       for (final result in results) {
         debugPrint(
@@ -175,9 +248,11 @@ class SyncManager {
         );
       }
 
-      for (final result in results) {
-        await _applyResult(result);
-      }
+      // Confere se todos os itens enviados
+      // receberam uma resposta.
+      //
+      // Essa validação ocorre ANTES de
+      // modificar a outbox.
 
       final processedIds = sentItems.map(_key).toSet();
 
@@ -191,11 +266,23 @@ class SyncManager {
       if (missing.isNotEmpty) {
         throw Exception(
           'O servidor não retornou resultado '
-          'para todos os itens enviados.',
+          'para todos os itens enviados: '
+          '${missing.join(', ')}',
         );
+      }
+
+      // Aplica os resultados somente depois
+      // que a resposta foi validada.
+
+      for (final result in results) {
+        await _applyResult(result);
       }
     }
   }
+
+  // ------------------------------------------------------------
+  // SELEÇÃO DOS ITENS
+  // ------------------------------------------------------------
 
   List<SyncOutboxItem> _takeEntity(
     List<SyncOutboxItem> items, {
@@ -214,9 +301,12 @@ class SyncManager {
   }
 
   String _key(SyncOutboxItem item) {
-    return '${item.entidade}:'
-        '${item.registroId}';
+    return '${item.entidade}:${item.registroId}';
   }
+
+  // ------------------------------------------------------------
+  // PROCESSAMENTO DOS RESULTADOS
+  // ------------------------------------------------------------
 
   Future<void> _applyResult(SyncItemResult result) async {
     final id = result.id;
@@ -224,6 +314,9 @@ class SyncManager {
     if (id == null) {
       return;
     }
+
+    // O servidor confirmou que o item
+    // foi processado ou já estava aplicado.
 
     if (result.status == 'ok' || result.status == 'ignorado') {
       await localRepository.removeOutbox(
@@ -234,6 +327,9 @@ class SyncManager {
       return;
     }
 
+    // Erro interno:
+    // mantém pendente e registra a tentativa.
+
     if (result.codigo == 'ERRO_INTERNO') {
       await localRepository.incrementAttempts(
         entidade: result.entidade,
@@ -243,6 +339,8 @@ class SyncManager {
 
       return;
     }
+
+    // Erros que exigem atenção.
 
     const attentionCodes = {'VALIDACAO', 'NAO_ENCONTRADO', 'CONFLITO'};
 
@@ -257,6 +355,9 @@ class SyncManager {
       return;
     }
 
+    // Erros desconhecidos:
+    // preserva o item e sinaliza atenção.
+
     await localRepository.markNeedsAttention(
       entidade: result.entidade,
       registroId: id,
@@ -265,9 +366,15 @@ class SyncManager {
     );
   }
 
+  // ------------------------------------------------------------
+  // SNAPSHOT
+  // ------------------------------------------------------------
+
   Future<void> _downloadAndReconcile() async {
     final snapshot = await remoteRepository.baixar();
 
     await localRepository.reconcileSnapshot(snapshot);
+
+    debugPrint('[SYNC] Snapshot recebido e reconciliado.');
   }
 }

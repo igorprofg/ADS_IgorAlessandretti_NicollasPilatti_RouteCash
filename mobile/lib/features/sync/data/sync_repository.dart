@@ -1,4 +1,7 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/network/dio_client.dart';
+import 'sync_assinatura_exception.dart';
 import 'sync_item_result.dart';
 import 'sync_snapshot.dart';
 
@@ -48,7 +51,24 @@ class SyncRepository {
       body['exclusoes'] = exclusoes;
     }
 
-    final response = await _dio.post('/sincronizacao/enviar', data: body);
+    late final Response<dynamic> response;
+
+    try {
+      response = await _dio.post('/sincronizacao/enviar', data: body);
+    } on DioException catch (e) {
+      final response = e.response;
+      final data = response?.data;
+
+      if (response?.statusCode == 403 && data is Map) {
+        final codigo = data['codigo'];
+
+        if (codigo == 'ASSINATURA_NECESSARIA') {
+          throw const SyncAssinaturaException();
+        }
+      }
+
+      rethrow;
+    }
 
     final data = Map<String, dynamic>.from(response.data as Map);
 

@@ -14,8 +14,10 @@ import { AtualizarGanhoDto } from './dto/atualizar-ganho.dto';
 import { DuplicarGanhoDto } from './dto/duplicar-ganho.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UsuarioAtual } from '../common/decorators/usuario-atual.decorator';
+import { AssinaturaAtivaGuard } from '../common/guards/assinatura-ativa.guard';
 
-@UseGuards(JwtAuthGuard)
+
+@UseGuards(JwtAuthGuard, AssinaturaAtivaGuard)
 @Controller('ganhos')
 export class GanhosController {
   constructor(private readonly ganhosService: GanhosService) {}
