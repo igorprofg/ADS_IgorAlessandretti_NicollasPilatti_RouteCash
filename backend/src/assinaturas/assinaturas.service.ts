@@ -633,7 +633,20 @@ export class AssinaturasService {
     }
 
     const agora = new Date();
-    const seteDias = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+const prazoSegundos =
+  process.env.NODE_ENV !== 'production' &&
+  process.env.OFFLINE_TESTE_120S === 'true'
+    ? 120
+    : 7 * 24 * 60 * 60;
+
+const seteDias = new Date(
+  agora.getTime() + prazoSegundos * 1000,
+);
+
+console.log('[TESTE OFFLINE] NODE_ENV:', process.env.NODE_ENV);
+console.log('[TESTE OFFLINE] Flag:', process.env.OFFLINE_TESTE_120S);
+console.log('[TESTE OFFLINE] Prazo em segundos:', prazoSegundos);
 
     // data_vencimento é uma data de calendário inclusiva.
     // Mantém o uso até o fim desse dia em UTC, sem estender

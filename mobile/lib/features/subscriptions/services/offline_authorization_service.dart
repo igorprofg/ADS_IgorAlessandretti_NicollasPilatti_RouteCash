@@ -7,16 +7,17 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/secure_storage.dart';
 
-/// Verifica a autorização offline ASSINADA pelo NestJS.
-/// O backend usa: base64url(JSON payload) + '.' + base64url(Ed25519(payloadB64url)).
+/// Verifica a autorizacao offline assinada pelo NestJS.
+/// Formato do token: base64url(JSON payload) + '.' + base64url(Ed25519(payloadB64url)).
 class OfflineAuthorizationService {
   OfflineAuthorizationService._();
 
   static const _storage = FlutterSecureStorage();
   static const _prefix = 'routecash_offline_authorization_v1_';
 
-  // Chave PÚBLICA SPKI/DER em base64 gerada junto à chave privada no backend.
-  // Passe via --dart-define ou substitua por uma constante pública no código.
+  /// Chave publica Ed25519 em formato SPKI/DER, codificada em Base64.
+  /// Deve ser fornecida na compilacao via --dart-define=OFFLINE_PUBLIC_KEY_B64=...
+  /// Nunca incluir a chave PRIVADA do backend no aplicativo.
   static const String _publicKeySpkiB64 = String.fromEnvironment(
     'OFFLINE_PUBLIC_KEY_B64',
     defaultValue: '',
@@ -24,9 +25,8 @@ class OfflineAuthorizationService {
 
   static String _storageKey(String userId) => '$_prefix$userId';
 
-  /// Solicita nova autorização ao servidor. Em 403 ou 401, elimina a concessão
-  /// local da conta: um cancelamento conhecido não pode continuar autorizado.
-  /// Em falha transitória de rede/5xx, conserva a concessão previamente obtida.
+  /// Solicita uma nova autorizacao ao backend.
+  /// Em 401/403, descarta o token local; em falha de rede/5xx, preserva-o.
   static Future<bool> renovarSilenciosamente() async {
     final userId = await SecureStorage.getUserId();
     if (userId == null || userId.isEmpty) return false;
@@ -41,29 +41,36 @@ class OfflineAuthorizationService {
             ),
           )
           .timeout(const Duration(seconds: 8));
+
       if (response.data is! Map) return false;
+
       final data = Map<String, dynamic>.from(response.data as Map);
       final token = data['token_offline'];
+
       if (data['autorizado'] != true || token is! String) return false;
 
-      // Jamais armazenar concessão sem conferir assinatura, usuário e validade.
+      // Nao grava uma autorizacao sem validar assinatura, usuario e prazo.
       if (!await _verificarToken(token, userId)) return false;
+
       await _storage.write(key: _storageKey(userId), value: token);
       return true;
     } on DioException catch (e) {
+      // Uma negativa explicita do servidor revoga a concessao local.
       if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
         await _storage.delete(key: _storageKey(userId));
       }
       return false;
     } catch (_) {
+      // Falhas transitorias nao removem a ultima autorizacao valida.
       return false;
     }
   }
 
-  /// Pode ser usado sem rede: apenas tokens válidos e assinados são aceitos.
+  /// Funciona sem acesso a rede, desde que o token local esteja valido.
   static Future<bool> possuiAutorizacaoValida() async {
     final userId = await SecureStorage.getUserId();
     if (userId == null || userId.isEmpty) return false;
+
     try {
       final token = await _storage.read(key: _storageKey(userId));
       if (token == null || token.isEmpty) return false;
@@ -73,14 +80,18 @@ class OfflineAuthorizationService {
     }
   }
 
-  /// Retorna a expiração somente se a autorização local estiver assinada,
-  /// pertencer ao usuário atual e ainda estiver válida.
+  /// Expiracao de um token local valido, para exibir o tempo restante.
+  /// Retorna null caso nao haja autorizacao ou ela ja tenha expirado.
   static Future<DateTime?> expiracaoLocalValida() async {
     final userId = await SecureStorage.getUserId();
     if (userId == null || userId.isEmpty) return null;
+
     try {
       final token = await _storage.read(key: _storageKey(userId));
-      if (token == null || !await _verificarToken(token, userId)) return null;
+      if (token == null || !await _verificarToken(token, userId)) {
+        return null;
+      }
+
       final partes = token.split('.');
       final dados =
           jsonDecode(
@@ -89,6 +100,7 @@ class OfflineAuthorizationService {
                 ),
               )
               as Map<String, dynamic>;
+
       return DateTime.fromMillisecondsSinceEpoch(
         (dados['exp'] as int) * 1000,
         isUtc: true,
@@ -98,15 +110,16 @@ class OfflineAuthorizationService {
     }
   }
 
-  /// Renova se houver conexão. Se a consulta falhar por rede/servidor,
-  /// aceita concessão assinada ainda válida. Em 401/403 a concessão é revogada.
+  /// Tenta renovar online. Na indisponibilidade do servidor, usa a ultima
+  /// autorizacao assinada e nao expirada, por no maximo sete dias.
   static Future<bool> autorizarEscrita() async {
     final online = await renovarSilenciosamente();
     if (online) return true;
     return possuiAutorizacaoValida();
   }
 
-  /// Apaga apenas a concessão offline da conta atual; NÃO altera SQLite/outbox.
+  /// Remove apenas a autorizacao offline do usuario atual.
+  /// Nao altera dados de SQLite nem a fila de sincronizacao.
   static Future<void> limparUsuarioAtual() async {
     final userId = await SecureStorage.getUserId();
     if (userId == null || userId.isEmpty) return;
@@ -115,9 +128,11 @@ class OfflineAuthorizationService {
 
   static Future<bool> _verificarToken(String token, String userId) async {
     if (_publicKeySpkiB64.isEmpty) return false;
+
     try {
       final parts = token.split('.');
       if (parts.length != 2) return false;
+
       final encodedPayload = parts[0];
       final payloadBytes = base64Url.decode(
         base64Url.normalize(encodedPayload),
@@ -128,6 +143,7 @@ class OfflineAuthorizationService {
       final payloadValue = jsonDecode(utf8.decode(payloadBytes));
       if (payloadValue is! Map<String, dynamic>) return false;
       final payload = payloadValue;
+
       if (payload['v'] != 1 ||
           payload['typ'] != 'routecash-offline' ||
           payload['sub'] != userId ||
@@ -141,14 +157,18 @@ class OfflineAuthorizationService {
       final issuedAt = payload['iat'] as int;
       final expiresAt = payload['exp'] as int;
       final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
-      // Tolerância de 2 minutos para relógio adiantado do aparelho.
+
+      // Aceita ate 120 segundos de diferenca de relogio na emissao.
       if (issuedAt > now + 120 || expiresAt <= now) return false;
-      if (expiresAt <= issuedAt || expiresAt - issuedAt > 7 * 24 * 60 * 60) {
+
+      // Nao aceita uma autorizacao mais longa que sete dias.
+      const maxOfflineSeconds = 7 * 24 * 60 * 60;
+      if (expiresAt <= issuedAt || expiresAt - issuedAt > maxOfflineSeconds) {
         return false;
       }
 
-      // Node exporta a chave pública em DER/SPKI. Para Ed25519, são 12 bytes
-      // de prefixo fixo + 32 bytes da chave pública bruta.
+      // A chave Ed25519 publica exportada pelo Node possui 12 bytes
+      // fixos do envelope SPKI/DER e 32 bytes da chave publica bruta.
       final der = base64.decode(_publicKeySpkiB64);
       const spkiPrefix = [
         0x30,
@@ -168,8 +188,9 @@ class OfflineAuthorizationService {
       for (var i = 0; i < spkiPrefix.length; i++) {
         if (der[i] != spkiPrefix[i]) return false;
       }
+
       final publicKey = SimplePublicKey(
-        der.sublist(12),
+        der.sublist(spkiPrefix.length),
         type: KeyPairType.ed25519,
       );
       return Ed25519().verify(
