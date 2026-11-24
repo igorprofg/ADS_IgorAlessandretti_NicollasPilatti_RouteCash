@@ -47,6 +47,8 @@ export function etiquetaAssinatura(situacao: SituacaoAssinatura): DadosEtiqueta 
       return { texto: 'Ativa', tipo: 'positivo' };
     case 'SUSPENSA':
       return { texto: 'Suspensa', tipo: 'neutro' };
+    case 'PENDENTE':
+      return { texto: 'Aguardando pagamento', tipo: 'neutro' };
     default:
       return { texto: 'Cancelada', tipo: 'negativo' };
   }

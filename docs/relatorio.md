@@ -968,6 +968,24 @@ backend/src/app.module.ts
 - A implementação do RF19 não exigiu novas migrations nem novas dependências e funciona como consulta somente leitura.
 
 
+### 24/11/2026 — Igor Alessandretti
+**O que foi feito:**
+- Aplicação do módulo/arquivos de `dados-pagamento` (`backend/src/dados-pagamento/`) e registro no `backend/src/app.module.ts`.
+- Atualização de `backend/src/assinaturas-admin/assinaturas-admin.controller.ts` e `backend/src/assinaturas-admin/assinaturas-admin.service.ts` para suporte ao fluxo administrativo de assinaturas/ativação (RF17).
+- Configuração do `.env` local mantendo `DATABASE_URL` na porta `5454`, com `ASAAS_API_KEY` do sandbox, chaves da autorização offline compartilhadas pelo Nícollas e URLs de retorno do checkout em `https://example.com/routecash/...`.
+- Validação do `nest build` sem erros e teste de webhook (`POST /webhooks/asaas` com evento `CHECKOUT_PAID` e `asaas-access-token` no Postman), confirmando ativação da assinatura (`ATIVA`, `2026-11-24` a `2026-12-24`) no primeiro envio e idempotência (`duplicado: true`) no segundo.
+
+**Próximos passos:**
+- Validar a integração completa do fluxo administrativo (`PENDENTE` -> ativação via admin) após o Nícollas ajustar a criação manual de assinatura para `PENDENTE`.
+- Acompanhar as próximas etapas conjuntas/pós-testes (URL estável de webhook na AWS, troca de chave do Asaas antes do deploy/apresentação e preparo de contas ativas para testes).
+
+**Dificuldades:**
+- O Asaas Sandbox recusou URLs de retorno em `localhost` (`successUrl`, `cancelUrl` e `expiredUrl`), exigindo URLs `https` (`https://example.com/routecash/...`).
+- O Asaas retornou erro de telefone ausente para o `customer` quando o campo de celular não estava preenchido nos dados de pagamento.
+
+**Observações:**
+- Conferido via `Select-String` em `backend/src/assinaturas/assinaturas.service.ts` após o `git pull` que a contratação manual (`OrigemAssinatura.MANUAL`) ainda cria assinatura com `SituacaoAssinatura.ATIVA`.
+
 
 <!-- Próxima entrada: copiar o modelo abaixo -->
 <!--

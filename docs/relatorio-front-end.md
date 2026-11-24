@@ -319,6 +319,23 @@ frontend/src/componentes/MenuLateral.tsx
 - O build de produção (`tsc -b && vite build`) concluiu sem erros após a implementação e os testes do RF19.
 
 
+### 24/11/2026 — Igor Alessandretti
+**O que foi feito:**
+- Criação da página `frontend/src/paginas/assinatura/DadosPagamento.tsx`, dos serviços `frontend/src/servicos/dados-pagamento.servico.ts` e `frontend/src/servicos/checkout.servico.ts`, e dos tipos `frontend/src/tipos/dados-pagamento.tipos.ts`.
+- Atualização de `frontend/src/paginas/assinatura/Assinatura.tsx`, `frontend/src/paginas/planos/DetalhePlano.tsx`, `frontend/src/paginas/admin/assinaturas/DetalheAssinaturaAdmin.tsx`, `frontend/src/servicos/assinaturas-admin.servico.ts` e `frontend/src/rotas/Rotas.tsx` (incluindo a rota `/dados-pagamento`).
+- Aplicação dos ajustes de tipagem, formatação e rótulos em `frontend/src/tipos/assinaturas.tipos.ts`, `frontend/src/utilitarios/formatadores.ts`, `frontend/src/utilitarios/mensagem-erro.ts` e `frontend/src/utilitarios/rotulos.ts` (incluindo `PENDENTE` e tratamento de datas vazias `—`).
+- Execução do `npm run build` (`tsc -b && vite build`) com sucesso e validação do fluxo na interface: validação de CPF, abertura do checkout do Asaas Sandbox (`Plano Mensal` — R$ 19,90), visualização de assinatura `PENDENTE` ("Aguardando pagamento") e atualização para `Ativa` (`Pagamento online (Asaas)`) após confirmação do webhook.
+
+**Próximos passos:**
+- Validar o fluxo de ativação de assinatura pendente no painel administrativo após o ajuste da contratação manual para `PENDENTE`.
+- Realizar os testes gerais do fluxo completo e apoiar as validações finais antes do deploy e apresentação.
+
+**Dificuldades:**
+- Sem dados de pagamento completos (especialmente o celular no `customer`) ou com URLs em `localhost`, o fluxo de checkout retornava erro da API do Asaas; com celular válido e URLs `https://example.com/routecash/...`, o checkout abriu normalmente.
+
+**Observações:**
+- Nenhuma 
+
 <!-- Próxima entrada: copiar o modelo abaixo -->
 
 <!--

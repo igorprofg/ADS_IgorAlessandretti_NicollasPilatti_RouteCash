@@ -39,3 +39,9 @@ export async function cancelarAssinaturaAdmin(id: string) {
   const { data } = await api.patch<AssinaturaAdminDetalhe>(`/admin/assinaturas/${id}/cancelar`);
   return data;
 }
+
+// Assinatura MANUAL pendente: o administrador confirma o pagamento e ativa
+export async function ativarAssinaturaAdmin(id: string) {
+  const { data } = await api.patch<AssinaturaAdminDetalhe>(`/admin/assinaturas/${id}/ativar`);
+  return data;
+}

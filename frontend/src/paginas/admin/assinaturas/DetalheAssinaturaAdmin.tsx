@@ -4,6 +4,7 @@ import Etiqueta from '../../../componentes/comum/Etiqueta';
 import ModalConfirmacao from '../../../componentes/comum/ModalConfirmacao';
 import { useCarregar } from '../../../hooks/useCarregar';
 import {
+  ativarAssinaturaAdmin,
   buscarAssinaturaAdmin,
   cancelarAssinaturaAdmin,
   reativarAssinatura,
@@ -23,9 +24,10 @@ import '../../../componentes/comum/comum.css';
 import '../../../estilos/assinaturas.css';
 import '../../../estilos/admin.css';
 
-type Acao = 'suspender' | 'reativar' | 'cancelar';
+type Acao = 'ativar' | 'suspender' | 'reativar' | 'cancelar';
 
 const EXECUTAR: Record<Acao, (id: string) => Promise<AssinaturaAdminDetalhe>> = {
+  ativar: ativarAssinaturaAdmin,
   suspender: suspenderAssinatura,
   reativar: reativarAssinatura,
   cancelar: cancelarAssinaturaAdmin,
@@ -35,6 +37,14 @@ const TEXTOS: Record<
   Acao,
   { titulo: string; confirmar: string; explicacao: string; sucesso: string; perigo: boolean }
 > = {
+  ativar: {
+    titulo: 'Ativar assinatura?',
+    confirmar: 'Sim, ativar',
+    explicacao:
+      'Confirme que o pagamento foi recebido (registre-o em Pagamentos). A assinatura fica ativa a partir de hoje, com vencimento pelo período do plano.',
+    sucesso: 'Assinatura ativada.',
+    perigo: false,
+  },
   suspender: {
     titulo: 'Suspender assinatura?',
     confirmar: 'Sim, suspender',
@@ -148,6 +158,11 @@ export default function DetalheAssinaturaAdmin() {
             )}
 
             <div className="acoes-assinante">
+              {assinatura.situacao === 'PENDENTE' && assinatura.origem === 'MANUAL' && (
+                <button className="botao" onClick={() => setAcao('ativar')}>
+                  Ativar assinatura
+                </button>
+              )}
               {assinatura.situacao === 'ATIVA' && (
                 <button className="botao-secundario" onClick={() => setAcao('suspender')}>
                   Suspender

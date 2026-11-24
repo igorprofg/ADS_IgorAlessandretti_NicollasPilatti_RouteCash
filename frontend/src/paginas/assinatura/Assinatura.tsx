@@ -14,6 +14,7 @@ import {
   SEM_VALOR,
 } from '../../utilitarios/formatadores';
 import { mensagemDeErro } from '../../utilitarios/mensagem-erro';
+import { iniciarCheckout } from '../../servicos/checkout.servico';
 import { etiquetaAssinatura, sufixoPeriodo } from '../../utilitarios/rotulos';
 import '../../componentes/comum/comum.css';
 import '../../estilos/assinaturas.css';
@@ -50,6 +51,25 @@ export default function Assinatura() {
     }
   }
 
+  // Volta do checkout do Asaas (?checkout=sucesso | cancelado | expirado)
+  const retornoCheckout = new URLSearchParams(local.search).get('checkout');
+
+  const [pagando, setPagando] = useState(false);
+  const [erroPagamento, setErroPagamento] = useState('');
+
+  // Reabre o checkout de uma contratação pendente (o backend reaproveita o mesmo)
+  async function continuarPagamento(idPlano: string) {
+    setPagando(true);
+    setErroPagamento('');
+    try {
+      const resultado = await iniciarCheckout(idPlano);
+      window.location.href = resultado.checkout_url;
+    } catch (e) {
+      setErroPagamento(mensagemDeErro(e, 'Não foi possível abrir o pagamento'));
+      setPagando(false);
+    }
+  }
+
   return (
     <section className="pagina">
       <div>
@@ -63,6 +83,20 @@ export default function Assinatura() {
       {canceladaAgora && (
         <p className="mensagem-sucesso">
           Assinatura cancelada. O registro foi mantido no seu histórico.
+        </p>
+      )}
+
+      {retornoCheckout === 'sucesso' && (
+        <p className="mensagem-sucesso">
+          Pagamento enviado! A assinatura será ativada assim que o Asaas confirmar.
+        </p>
+      )}
+      {(retornoCheckout === 'cancelado' || retornoCheckout === 'expirado') && (
+        <p className="mensagem-erro">O pagamento não foi concluído. Você pode tentar novamente.</p>
+      )}
+      {erroPagamento && (
+        <p className="mensagem-erro" role="alert">
+          {erroPagamento}
         </p>
       )}
 
@@ -99,12 +133,32 @@ export default function Assinatura() {
             </span>
           </div>
 
+          {atual.situacao === 'PENDENTE' && (
+            <p className="texto-secundario">
+              {atual.origem === 'MANUAL'
+                ? 'Aguardando a liberação pelo administrador, após a confirmação do pagamento.'
+                : 'Aguardando a confirmação do pagamento pelo Asaas.'}
+            </p>
+          )}
+
           <div className="acoes-assinatura">
+            {atual.situacao === 'PENDENTE' && atual.origem !== 'MANUAL' && (
+              <button
+                className="botao"
+                disabled={pagando}
+                onClick={() => continuarPagamento(atual.plano.id_plano)}
+              >
+                {pagando ? 'Abrindo...' : 'Continuar pagamento'}
+              </button>
+            )}
             <button className="botao botao-perigo" onClick={() => setCancelando(true)}>
               Cancelar assinatura
             </button>
             <Link to="/planos" className="botao-secundario link-botao">
               Ver planos
+            </Link>
+            <Link to="/dados-pagamento" className="botao-secundario link-botao">
+              Dados de pagamento
             </Link>
           </div>
         </div>

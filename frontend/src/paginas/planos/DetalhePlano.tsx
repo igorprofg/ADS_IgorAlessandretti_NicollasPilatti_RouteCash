@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import Etiqueta from '../../componentes/comum/Etiqueta';
 import ModalConfirmacao from '../../componentes/comum/ModalConfirmacao';
 import { useCarregar } from '../../hooks/useCarregar';
-import { contratarPlano } from '../../servicos/assinaturas.servico';
+import { buscarDadosPagamento } from '../../servicos/dados-pagamento.servico';
+import { iniciarCheckout } from '../../servicos/checkout.servico';
 import { buscarPlano } from '../../servicos/planos.servico';
 import { formatarMoeda } from '../../utilitarios/formatadores';
 import { mensagemDeErro } from '../../utilitarios/mensagem-erro';
@@ -28,8 +29,15 @@ export default function DetalhePlano() {
     setErroContratacao('');
 
     try {
-      await contratarPlano(plano.id_plano);
-      navegar('/assinatura', { state: { contratado: true } });
+      // Antes do checkout, o Asaas exige CPF/CNPJ e endereço do usuário
+      const dados = await buscarDadosPagamento();
+      if (!dados.completo) {
+        navegar('/dados-pagamento', { state: { voltarPara: `/planos/${plano.id_plano}` } });
+        return;
+      }
+
+      const resultado = await iniciarCheckout(plano.id_plano);
+      window.location.href = resultado.checkout_url; // abre a página de pagamento do Asaas
     } catch (e) {
       setErroContratacao(mensagemDeErro(e, 'Não foi possível contratar o plano'));
       setProcessando(false);
@@ -99,7 +107,7 @@ export default function DetalhePlano() {
       {confirmando && plano && (
         <ModalConfirmacao
           titulo="Confirmar contratação"
-          textoConfirmar="Confirmar contratação"
+          textoConfirmar="Ir para o pagamento"
           processando={processando}
           erro={erroContratacao}
           aoConfirmar={confirmarContratacao}
@@ -117,6 +125,10 @@ export default function DetalhePlano() {
             <span>Cobrança</span>
             <span>{rotuloPeriodo(plano.periodo_cobranca)}</span>
           </div>
+          <p className="texto-secundario">
+            Você será levado à página segura do Asaas para pagar com cartão de crédito. A
+            assinatura é ativada quando o pagamento for confirmado.
+          </p>
         </ModalConfirmacao>
       )}
     </section>

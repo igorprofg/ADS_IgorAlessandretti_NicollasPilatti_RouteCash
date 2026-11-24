@@ -3,27 +3,27 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma, SituacaoAssinatura } from '@prisma/client';
+import { OrigemAssinatura, Prisma, SituacaoAssinatura } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { hojeComoData } from '../common/periodo-cobranca';
+import { adicionarMeses, hojeComoData, mesesDoPeriodo } from '../common/periodo-cobranca';
 import { ConsultarAssinaturasDto } from './dto/consultar-assinaturas.dto';
 
 export type AssinaturaCompleta = Prisma.AssinaturaGetPayload<{
-    include: {
-        usuario: {
-            select: { id_usuario: true; nome: true, email: true; status_conta: true};
-        };
-        plano: true;
+  include: {
+    usuario: {
+      select: { id_usuario: true; nome: true; email: true; status_conta: true };
     };
+    plano: true;
+  };
 }>;
 
 const INCLUIR_COMPLETO = {
-    usuario: {
-        select: { id_usuario: true, nome: true, email: true, status_conta: true},
-
-    },
-    plano: true,
+  usuario: {
+    select: { id_usuario: true, nome: true, email: true, status_conta: true },
+  },
+  plano: true,
 } as const;
 
 const dia = (data: Date) => data.toISOString().slice(0, 10);
@@ -41,62 +41,61 @@ const dia = (data: Date) => data.toISOString().slice(0, 10);
 // antes de gravar. Por isso a resposta traz "vinculo_asaas", que a tela usa para avisar o admin.
 @Injectable()
 export class AssinaturasAdminService {
-    constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-    private serializar(a: AssinaturaCompleta) {
-        return {
-            id_assinatura: a.id_assinatura,
-            situacao: a.situacao, 
-            origem: a.origem,
-            // Assinatura pendente (aguardando o pagamento) ainda não tem datas 
-            data_inicio: a.data_inicio ? dia(a.data_inicio) : null,
-            data_vencimento: a.data_vencimento ? dia(a.data_vencimento) : null,
-            vencida: 
-            a.situacao !== SituacaoAssinatura.CANCELADA && 
-            a.data_vencimento !== null && 
-            a.data_vencimento.getTime() < hojeComoData().getTime(),
-            data_cancelamento: a.data_cancelamento
-            ? a.data_cancelamento.toISOString()
-            : null, 
-        data_cadastro: a.data_cadastro.toISOString(),
-        veiculo_asaas: Boolean(a.asaas_subscription_id || a.asaas_checkout_id),
-        usuario: {
-            id_usuario: a.usuario.id_usuario,
-            nome: a.usuario.nome, 
-            email: a.usuario.email,
-            status_conta: a.usuario.status_conta, 
-}, 
-
-        plano: {
-            id_plano: a.plano.id_plano,
-            nome: a.plano.nome,
-            valor: Number(a.plano.valor),
-            periodo_cobranca: a.plano.periodo_cobranca,
-        },
+  private serializar(a: AssinaturaCompleta) {
+    return {
+      id_assinatura: a.id_assinatura,
+      situacao: a.situacao,
+      origem: a.origem,
+      // Assinatura pendente (aguardando o pagamento) ainda não tem datas
+      data_inicio: a.data_inicio ? dia(a.data_inicio) : null,
+      data_vencimento: a.data_vencimento ? dia(a.data_vencimento) : null,
+      vencida:
+        a.situacao !== SituacaoAssinatura.CANCELADA &&
+        a.data_vencimento !== null &&
+        a.data_vencimento.getTime() < hojeComoData().getTime(),
+      data_cancelamento: a.data_cancelamento
+        ? a.data_cancelamento.toISOString()
+        : null,
+      data_cadastro: a.data_cadastro.toISOString(),
+      vinculo_asaas: Boolean(a.asaas_subscription_id || a.asaas_checkout_id),
+      usuario: {
+        id_usuario: a.usuario.id_usuario,
+        nome: a.usuario.nome,
+        email: a.usuario.email,
+        status_conta: a.usuario.status_conta,
+      },
+      plano: {
+        id_plano: a.plano.id_plano,
+        nome: a.plano.nome,
+        valor: Number(a.plano.valor),
+        periodo_cobranca: a.plano.periodo_cobranca,
+      },
     };
-}
+  }
 
-    private serializarDetalhe(a: AssinaturaCompleta) {
-        return {
-            ...this.serializar(a), 
-            asaas_checkout_id: a.asaas_checkout_id, 
-            asaas_subscription_id: a.asaas_subscription_id,
-        };
+  private serializarDetalhe(a: AssinaturaCompleta) {
+    return {
+      ...this.serializar(a),
+      asaas_checkout_id: a.asaas_checkout_id,
+      asaas_subscription_id: a.asaas_subscription_id,
+    };
+  }
+
+  private async obter(id: string) {
+    const assinatura = await this.prisma.assinatura.findUnique({
+      where: { id_assinatura: id },
+      include: INCLUIR_COMPLETO,
+    });
+    if (!assinatura) {
+      throw new NotFoundException('Assinatura não encontrada');
     }
+    return assinatura;
+  }
 
-    private async obter(id: string) {
-        const assinatura = await this.prisma.assinatura.findUnique({
-            where: { id_assinatura: id }, 
-            include: INCLUIR_COMPLETO,
-        });
-        if (!assinatura){
-            throw new NotFoundException('Assinatura não foi encontrada'); 
-        }
-        return assinatura; 
-    }
-
-    // Listar, pesquisar (usuário ou plano) e filtrar por situação 
-    async listar(filtro: ConsultarAssinaturasDto) {
+  // Listar, pesquisar (usuário ou plano) e filtrar por situação
+  async listar(filtro: ConsultarAssinaturasDto) {
     const pagina = filtro.pagina ?? 1;
     const limite = filtro.limite ?? 20;
     const busca = filtro.busca?.trim();
@@ -143,6 +142,34 @@ export class AssinaturasAdminService {
       include: INCLUIR_COMPLETO,
     });
     return this.serializarDetalhe(atualizada);
+  }
+
+  // Ativar: só para assinatura MANUAL pendente. O administrador confirma que o pagamento foi
+  // recebido fora do Asaas (o RF18 registra o pagamento). Assinatura ASAAS é ativada pelo Webhook.
+  async ativar(id: string) {
+    const assinatura = await this.obter(id);
+    if (assinatura.situacao !== SituacaoAssinatura.PENDENTE) {
+      throw new BadRequestException('Somente assinaturas pendentes podem ser ativadas');
+    }
+    if (assinatura.origem !== OrigemAssinatura.MANUAL) {
+      throw new ConflictException(
+        'Assinaturas contratadas pelo Asaas são ativadas pela confirmação do pagamento no gateway',
+      );
+    }
+
+    const meses = mesesDoPeriodo(assinatura.plano.periodo_cobranca);
+    if (meses === null) {
+      throw new UnprocessableEntityException(
+        'O plano desta assinatura está com o período de cobrança inválido',
+      );
+    }
+
+    const inicio = hojeComoData();
+    return this.alterar(id, {
+      situacao: SituacaoAssinatura.ATIVA,
+      data_inicio: inicio,
+      data_vencimento: adicionarMeses(inicio, meses),
+    });
   }
 
   async suspender(id: string) {

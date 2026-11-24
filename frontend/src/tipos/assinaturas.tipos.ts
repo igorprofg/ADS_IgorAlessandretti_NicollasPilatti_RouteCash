@@ -18,14 +18,15 @@ export interface PlanoResumo {
   beneficios: string;
 }
 
-export type SituacaoAssinatura = 'ATIVA' | 'SUSPENSA' | 'CANCELADA';
+export type SituacaoAssinatura = 'PENDENTE' | 'ATIVA' | 'SUSPENSA' | 'CANCELADA';
 
 // Resposta de /assinaturas
 export interface Assinatura {
   id_assinatura: string;
   situacao: SituacaoAssinatura;
-  data_inicio: string; // AAAA-MM-DD
-  data_vencimento: string; // AAAA-MM-DD
+  origem?: 'MANUAL' | 'ASAAS';
+  data_inicio: string | null; // AAAA-MM-DD
+  data_vencimento: string | null; // AAAA-MM-DD
   data_cancelamento: string | null; // data e hora ISO
   vencida: boolean; // calculado no backend: o vencimento já passou
   plano: PlanoResumo;

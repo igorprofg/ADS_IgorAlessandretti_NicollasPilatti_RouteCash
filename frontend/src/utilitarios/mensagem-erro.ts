@@ -10,6 +10,17 @@ export function mensagemDeErro(erro: unknown, padrao: string): string {
     const mensagem = erro.response.data?.message;
     if (Array.isArray(mensagem)) return mensagem.join('. ');
     if (typeof mensagem === 'string') return mensagem;
+
+    // O AsaasService devolve { mensagem, resposta: { errors: [{ description }] } }
+    const outra = erro.response.data?.mensagem;
+    const detalhes = erro.response.data?.resposta?.errors;
+    if (Array.isArray(detalhes) && detalhes.length > 0) {
+      return detalhes
+        .map((d: { description?: string }) => d.description)
+        .filter(Boolean)
+        .join('. ');
+    }
+    if (typeof outra === 'string') return outra;
   }
   return padrao;
 }

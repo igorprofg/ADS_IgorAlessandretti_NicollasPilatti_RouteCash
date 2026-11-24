@@ -44,7 +44,8 @@ export function formatarDiaMes(dia: string) {
 }
 
 // '2026-10-20' -> '20/10/2026'
-export function formatarData(dia: string) {
+export function formatarData(dia: string | null) {
+  if (dia === null) return SEM_VALOR;
   const [ano, mes, d] = dia.split('-');
   return `${d}/${mes}/${ano}`;
 }

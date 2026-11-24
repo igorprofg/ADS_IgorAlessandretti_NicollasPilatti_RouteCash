@@ -20,6 +20,7 @@ import { PlanosAdminModule } from './planos-admin/planos-admin.module';
 import { AssinaturasAdminModule } from './assinaturas-admin/assinaturas-admin.module';
 import { PagamentosAdminModule } from './pagamentos-admin/pagamentos-admin.module';
 import { IndicadoresAdminModule } from './indicadores-admin/indicadores-admin.module';
+import { DadosPagamentoModule } from './dados-pagamento/dados-pagamento.module';
 import { AsaasModule } from './asaas/asaas.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 
@@ -50,6 +51,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     AssinaturasAdminModule,
     PagamentosAdminModule,
     IndicadoresAdminModule,
+    DadosPagamentoModule,
     AsaasModule,
     WebhooksModule,
   ],

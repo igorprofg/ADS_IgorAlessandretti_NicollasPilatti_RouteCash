@@ -28,6 +28,11 @@ export class AssinaturasAdminController {
     return this.assinaturasAdminService.buscarUm(id);
   }
 
+  @Patch(':id/ativar')
+  ativar(@Param('id', ParseUUIDPipe) id: string) {
+    return this.assinaturasAdminService.ativar(id);
+  }
+
   @Patch(':id/suspender')
   suspender(@Param('id', ParseUUIDPipe) id: string) {
     return this.assinaturasAdminService.suspender(id);
