@@ -1,0 +1,15 @@
+.aviso-assinatura {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--cor-borda-card);
+  border-radius: var(--raio-card);
+  background: var(--cor-destaque-suave);
+}
+
+.aviso-assinatura p {
+  margin: 0;
+}

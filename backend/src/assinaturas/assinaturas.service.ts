@@ -276,18 +276,12 @@ export class AssinaturasService {
             id_plano:
               plano.id_plano,
 
-            data_inicio:
-              inicio,
+                        // Manual: fica PENDENTE até o administrador confirmar o pagamento (RF17, "Ativar")
+            data_inicio: null,
+            data_vencimento: null,
 
-            data_vencimento:
-              adicionarMeses(
-                inicio,
-                meses,
-              ),
-
-            // Fluxo manual libera imediatamente.
             situacao:
-              SituacaoAssinatura.ATIVA,
+              SituacaoAssinatura.PENDENTE,
 
             origem:
               OrigemAssinatura.MANUAL,

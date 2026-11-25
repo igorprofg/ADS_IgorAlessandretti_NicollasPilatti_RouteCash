@@ -6,6 +6,7 @@ import CartaoResumo from '../../componentes/dashboard/CartaoResumo';
 import FiltroPeriodo from '../../componentes/dashboard/FiltroPeriodo';
 import GraficoFaturamentoDespesas from '../../componentes/dashboard/GraficoFaturamentoDespesas';
 import GraficoLucroAcumulado from '../../componentes/dashboard/GraficoLucroAcumulado';
+import AvisoAssinatura from '../../componentes/dashboard/AvisoAssinatura';
 import {
   formatarData,
   formatarHoras,
@@ -46,7 +47,10 @@ export default function Dashboard() {
         <h1>Dashboard</h1>
         <p className="texto-secundario">
           Olá, {primeiroNome}. Veja como está a sua rentabilidade.
+          
         </p>
+        <AvisoAssinatura />
+        
       </div>
 
       <FiltroPeriodo preset={preset} periodo={periodo} aoAlterar={alterarPeriodo} />

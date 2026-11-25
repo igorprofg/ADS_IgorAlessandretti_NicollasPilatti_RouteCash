@@ -39,7 +39,7 @@ function Formulario({ dados }: FormularioProps) {
     try {
       await salvarDadosPagamento({
         cpf_cnpj: cpfCnpj,
-        celular: celular || undefined,
+        celular,
         cep,
         logradouro,
         numero_endereco: numero,
@@ -85,7 +85,7 @@ function Formulario({ dados }: FormularioProps) {
 
         <div className="grupo-campo">
           <label className="rotulo" htmlFor="dp-celular">
-            Celular (com DDD, opcional)
+            Celular (com DDD)
           </label>
           <input
             id="dp-celular"
@@ -93,6 +93,7 @@ function Formulario({ dados }: FormularioProps) {
             type="text"
             inputMode="tel"
             maxLength={20}
+            required
             value={celular}
             onChange={(e) => setCelular(e.target.value)}
           />

@@ -15,7 +15,7 @@ export interface DadosPagamentoUsuario {
 // Corpo de PATCH /usuarios/me/dados-pagamento
 export interface SalvarDadosPagamento {
   cpf_cnpj: string;
-  celular?: string;
+  celular: string;
   cep: string;
   logradouro: string;
   numero_endereco: string;

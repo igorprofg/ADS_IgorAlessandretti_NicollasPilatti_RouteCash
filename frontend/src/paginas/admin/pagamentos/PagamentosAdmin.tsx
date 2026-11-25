@@ -75,7 +75,11 @@ export default function PagamentosAdmin() {
     setErroAcao('');
     try {
       await atualizarSituacaoPagamento(alvo.id_pagamento, novaSituacao, dataPagamento);
-      setSucesso('Situação do pagamento atualizada.');
+      setSucesso(
+        novaSituacao === 'PAGO' && alvo.assinatura_situacao === 'PENDENTE'
+          ? 'Pagamento registrado como pago. Para liberar o acesso, ative a assinatura em Assinaturas → Detalhes.'
+          : 'Situação do pagamento atualizada.',
+      );
       setAlvo(null);
       recarregar();
     } catch (e) {

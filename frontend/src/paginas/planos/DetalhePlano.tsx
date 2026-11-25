@@ -5,6 +5,7 @@ import ModalConfirmacao from '../../componentes/comum/ModalConfirmacao';
 import { useCarregar } from '../../hooks/useCarregar';
 import { buscarDadosPagamento } from '../../servicos/dados-pagamento.servico';
 import { iniciarCheckout } from '../../servicos/checkout.servico';
+import { contratarPlano } from '../../servicos/assinaturas.servico';
 import { buscarPlano } from '../../servicos/planos.servico';
 import { formatarMoeda } from '../../utilitarios/formatadores';
 import { mensagemDeErro } from '../../utilitarios/mensagem-erro';
@@ -22,6 +23,11 @@ export default function DetalhePlano() {
   const [confirmando, setConfirmando] = useState(false);
   const [processando, setProcessando] = useState(false);
   const [erroContratacao, setErroContratacao] = useState('');
+
+  // Contratação manual: fica pendente até o administrador confirmar o pagamento
+  const [solicitandoManual, setSolicitandoManual] = useState(false);
+  const [processandoManual, setProcessandoManual] = useState(false);
+  const [erroManual, setErroManual] = useState('');
 
   async function confirmarContratacao() {
     if (!plano) return;
@@ -41,6 +47,20 @@ export default function DetalhePlano() {
     } catch (e) {
       setErroContratacao(mensagemDeErro(e, 'Não foi possível contratar o plano'));
       setProcessando(false);
+    }
+  }
+
+  async function confirmarManual() {
+    if (!plano) return;
+    setProcessandoManual(true);
+    setErroManual('');
+
+    try {
+      await contratarPlano(plano.id_plano);
+      navegar('/assinatura', { state: { contratado: true } });
+    } catch (e) {
+      setErroManual(mensagemDeErro(e, 'Não foi possível registrar a solicitação'));
+      setProcessandoManual(false);
     }
   }
 
@@ -89,7 +109,10 @@ export default function DetalhePlano() {
           {plano.disponivel_para_contratacao && (
             <div className="acoes-assinatura">
               <button className="botao" onClick={() => setConfirmando(true)}>
-                Contratar plano
+                Pagar com cartão (Asaas)
+              </button>
+              <button className="botao-secundario" onClick={() => setSolicitandoManual(true)}>
+                Solicitar com pagamento manual
               </button>
             </div>
           )}
@@ -128,6 +151,30 @@ export default function DetalhePlano() {
           <p className="texto-secundario">
             Você será levado à página segura do Asaas para pagar com cartão de crédito. A
             assinatura é ativada quando o pagamento for confirmado.
+          </p>
+        </ModalConfirmacao>
+      )}
+
+      {solicitandoManual && plano && (
+        <ModalConfirmacao
+          titulo="Solicitar contratação"
+          textoConfirmar="Solicitar"
+          processando={processandoManual}
+          erro={erroManual}
+          aoConfirmar={confirmarManual}
+          aoCancelar={() => setSolicitandoManual(false)}
+        >
+          <div className="linha-info">
+            <span>Plano</span>
+            <span>{plano.nome}</span>
+          </div>
+          <div className="linha-info">
+            <span>Valor</span>
+            <span>{formatarMoeda(plano.valor)}</span>
+          </div>
+          <p className="texto-secundario">
+            Sua assinatura fica pendente até a administração confirmar o pagamento feito por outro
+            meio. Depois da confirmação, o acesso é liberado.
           </p>
         </ModalConfirmacao>
       )}

@@ -19,6 +19,16 @@ export class AssinaturasController {
     private readonly assinaturasService: AssinaturasService,
   ) {}
 
+  // Contratação manual (assinatura PENDENTE até liberação pelo admin).
+  @Post()
+  contratarManual(
+    @UsuarioAtual() usuarioId: string,
+    @Body() dto: ContratarAssinaturaDto,
+  ) {
+    return this.assinaturasService.contratar(usuarioId, dto);
+  }
+
+
   // Contratação pelo Asaas (assinatura PENDENTE até confirmação).
   @Post('asaas')
   contratarComAsaas(

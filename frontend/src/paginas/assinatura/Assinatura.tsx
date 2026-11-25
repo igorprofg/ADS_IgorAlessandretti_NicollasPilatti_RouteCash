@@ -78,7 +78,9 @@ export default function Assinatura() {
       </div>
 
       {contratadoAgora && !canceladaAgora && (
-        <p className="mensagem-sucesso">Plano contratado com sucesso!</p>
+        <p className="mensagem-sucesso">
+          Solicitação registrada! A assinatura será ativada após a confirmação do pagamento.
+        </p>
       )}
       {canceladaAgora && (
         <p className="mensagem-sucesso">

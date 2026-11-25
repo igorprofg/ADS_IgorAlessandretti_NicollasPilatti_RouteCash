@@ -4,13 +4,6 @@ import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-vali
 const somenteDigitos = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.replace(/\D/g, '') : value;
 
-// Vazio vira "não informado" (undefined)
-const digitosOuVazio = ({ value }: { value: unknown }) => {
-  if (typeof value !== 'string') return value;
-  const digitos = value.replace(/\D/g, '');
-  return digitos === '' ? undefined : digitos;
-};
-
 const textoAparado = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
@@ -27,10 +20,12 @@ export class SalvarDadosPagamentoDto {
   @Matches(/^(\d{11}|\d{14})$/, { message: 'CPF/CNPJ deve ter 11 ou 14 dígitos' })
   cpf_cnpj: string;
 
-  @IsOptional()
-  @Transform(digitosOuVazio)
-  @Matches(/^\d{10,11}$/, { message: 'O celular deve ter 10 ou 11 dígitos, com DDD' })
-  celular?: string;
+  // Obrigatório: o Asaas recusa o checkout sem o telefone do cliente
+  @Transform(somenteDigitos)
+  @Matches(/^\d{10,11}$/, {
+    message: 'O celular é obrigatório e deve ter 10 ou 11 dígitos, com DDD',
+  })
+  celular: string;
 
   @Transform(somenteDigitos)
   @Matches(/^\d{8}$/, { message: 'O CEP deve ter 8 dígitos' })

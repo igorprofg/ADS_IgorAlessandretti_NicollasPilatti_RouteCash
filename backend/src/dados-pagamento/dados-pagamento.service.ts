@@ -34,7 +34,9 @@ export class DadosPagamentoService {
     return {
       ...u,
       // true quando já dá para iniciar um checkout (mesmos campos que o AsaasService exige)
-      completo: Boolean(u.cpf_cnpj && u.cep && u.logradouro && u.numero_endereco && u.bairro),
+      completo: Boolean(
+        u.cpf_cnpj && u.celular && u.cep && u.logradouro && u.numero_endereco && u.bairro,
+      ),
     };
   }
 
@@ -59,7 +61,7 @@ export class DadosPagamentoService {
         where: { id_usuario: usuarioId },
         data: {
           cpf_cnpj: dto.cpf_cnpj,
-          celular: dto.celular ?? null,
+          celular: dto.celular,
           cep: dto.cep,
           logradouro: dto.logradouro,
           numero_endereco: dto.numero_endereco,
