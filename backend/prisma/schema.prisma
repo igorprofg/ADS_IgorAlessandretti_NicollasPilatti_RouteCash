@@ -668,7 +668,17 @@ model EventoWebhook {
 
   // Data/hora em que o Route Cash terminou
   // de processar o evento.
-  processado_em DateTime @default(now())
+  // Inbox durável: não marcar como processado antes do COMMIT financeiro.
+  payload             Json
+  situacao            String    @default("PENDENTE") @db.VarChar(30)
+  tentativas          Int       @default(0)
+  erro                String?   @db.Text
+  recebido_em         DateTime  @default(now())
+  ultima_tentativa_em DateTime?
+  proxima_tentativa_em DateTime @default(now())
+  bloqueado_ate       DateTime?
+  processado_em       DateTime?
 
+  @@index([situacao, proxima_tentativa_em])
   @@map("evento_webhook")
 }

@@ -2,6 +2,9 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
   InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
@@ -19,7 +22,23 @@ type AsaasWebhookPayload = {
 };
 
 @Injectable()
-export class WebhooksService {
+export class WebhooksService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(WebhooksService.name);
+  private pollingTimer: ReturnType<typeof setInterval> | null = null;
+  private executandoLote = false;
+
+  // Polling em banco: sobrevive a reinicializações, sem depender da memória.
+  onModuleInit(): void {
+    this.pollingTimer = setInterval(() => { void this.processarLote(); }, 5000);
+    this.pollingTimer.unref?.();
+    // O primeiro processamento acontece mesmo sem novo webhook recebido.
+    setImmediate(() => { void this.processarLote(); });
+  }
+
+  onModuleDestroy(): void {
+    if (this.pollingTimer) clearInterval(this.pollingTimer);
+    this.pollingTimer = null;
+  }
   private readonly webhookToken: string;
 
   constructor(
@@ -180,6 +199,14 @@ export class WebhooksService {
         meses = 1;
         break;
 
+      case 'TRIMESTRAL':
+        meses = 3;
+        break;
+
+      case 'SEMESTRAL':
+        meses = 6;
+        break;
+
       case 'ANUAL':
         meses = 12;
         break;
@@ -322,12 +349,6 @@ export class WebhooksService {
   }
 
   // ==========================================
-// SUBSCRIPTION_CREATED
-// ==========================================
-
-
-
-// ==========================================
 // SUBSCRIPTION_CREATED
 // ==========================================
 
@@ -708,7 +729,7 @@ private async processarPaymentCreated(
 
   if (!assinatura || assinatura.origem !== 'ASAAS') {
     throw new NotFoundException(
-      'Assinatura vinculada à cobrança não encontrada.',
+      'Assinatura vinculada à cobrança não encontrada. Verifique o checkoutSession e o vínculo local antes de reenviar.',
     );
   }
 
@@ -824,10 +845,6 @@ private async processarPaymentCreated(
     mensagem: 'Cobrança registrada com sucesso.',
   };
 }
-
-// ==========================================
-// RENOVAÇÃO AUTOMÁTICA DA ASSINATURA
-// ==========================================
 
 // ==========================================
 // RENOVAÇÃO E REATIVAÇÃO DA ASSINATURA
@@ -1139,6 +1156,7 @@ private async processarPaymentConfirmed(
   }
 
   // A confirmação e a renovação compartilham a mesma transação.
+  // Cobrança confirmada não ativa assinatura local PENDENTE sem CHECKOUT_PAID.
   const renovacao = await this.renovarAssinatura(
     tx,
     pagamento.id_assinatura,
@@ -1654,191 +1672,253 @@ private async processarPaymentDeleted(
   };
 }
 
-// ==========================================
-// PROCESSAMENTO DOS EVENTOS
-// ==========================================
-
-// ==========================================
-// PROCESSAMENTO DOS EVENTOS
-// ==========================================
-
-private async processarEvento(
-  tx: Prisma.TransactionClient,
-  payload: AsaasWebhookPayload,
-) {
-  switch (payload.event) {
-    case 'CHECKOUT_PAID':
-      return this.processarCheckoutPaid(
-        tx,
-        payload,
-      );
-
-    case 'SUBSCRIPTION_CREATED':
-      return this.processarSubscriptionCreated(
-        tx,
-        payload,
-      );
-
-    case 'PAYMENT_CREATED': {
-  // Primeiro, registra a cobrança.
-  const criacao = await this.processarPaymentCreated(
-    tx,
-    payload,
-  );
-
-  const payment =
-    payload.payment as Record<string, unknown>;
-
-  // O Asaas pode criar uma cobrança que já esteja
-  // confirmada ou recebida.
-  if (
-    payment.status === 'CONFIRMED' ||
-    payment.status === 'RECEIVED'
+  // ==========================================
+  // DISPATCHER DOS EVENTOS ASAAS
+  // ==========================================
+  // Os eventos podem chegar fora de ordem. A criação e a confirmação
+  // de uma mesma cobrança são processadas na mesma transação Prisma.
+  // Não relacionar uma cobrança a uma assinatura por simples coincidência
+  // de usuário/valor: a identificação usa IDs do Asaas e checkout.
+  private async processarEvento(
+    tx: Prisma.TransactionClient,
+    payload: AsaasWebhookPayload,
   ) {
-    const confirmacao =
-      await this.processarPaymentConfirmed(
-        tx,
-        payload,
-      );
+    switch (payload.event) {
+      case 'CHECKOUT_PAID':
+        return this.processarCheckoutPaid(tx, payload);
+
+      case 'SUBSCRIPTION_CREATED':
+        return this.processarSubscriptionCreated(tx, payload);
+
+      case 'PAYMENT_CREATED': {
+        // O Asaas pode criar uma cobrança que já chega CONFIRMED.
+        const criacao = await this.processarPaymentCreated(tx, payload);
+        const dados = payload.payment;
+        if (
+          dados &&
+          typeof dados === 'object' &&
+          !Array.isArray(dados) &&
+          ['CONFIRMED', 'RECEIVED'].includes(
+            String((dados as Record<string, unknown>).status ?? ''),
+          )
+        ) {
+          const confirmacao = await this.processarPaymentConfirmed(tx, payload);
+          return { ...criacao, confirmacao, mensagem: 'Cobrança registrada e confirmação processada.' };
+        }
+        return criacao;
+      }
+
+      case 'PAYMENT_CONFIRMED':
+      case 'PAYMENT_RECEIVED': {
+        const dados = payload.payment;
+        if (!dados || typeof dados !== 'object' || Array.isArray(dados)) {
+          throw new BadRequestException('O evento não informou a cobrança.');
+        }
+        const paymentId = (dados as Record<string, unknown>).id;
+        if (typeof paymentId !== 'string' || !paymentId.trim()) {
+          throw new BadRequestException('O evento não informou um payment.id válido.');
+        }
+
+        const existente = await tx.pagamento.findUnique({
+          where: { asaas_payment_id: paymentId.trim() },
+        });
+
+        if (!existente) {
+          // Corrige chegada fora de ordem: PAYMENT_CONFIRMED antes de
+          // PAYMENT_CREATED. O método de criação valida checkout,
+          // assinatura e customer antes de persistir o pagamento.
+          // Se não houver vínculo local, ERRO: não ativar contas erradas.
+          await this.processarPaymentCreated(tx, payload);
+        }
+        return this.processarPaymentConfirmed(tx, payload);
+      }
+
+      case 'PAYMENT_OVERDUE':
+        return this.processarPaymentOverdue(tx, payload);
+
+      case 'SUBSCRIPTION_DELETED':
+        return this.processarSubscriptionDeleted(tx, payload);
+
+      case 'PAYMENT_DELETED':
+        return this.processarPaymentDeleted(tx, payload);
+
+      default:
+        // Evento desconhecido é identificado e registrado, sem falha 500.
+        return { mensagem: 'Evento recebido sem regra de negócio implementada.' };
+    }
+  }
+
+  // ==========================================
+  // INBOX DURÁVEL DOS WEBHOOKS ASAAS
+  // ==========================================
+  // IMPORTANTE: o Asaas considera a entrega concluída após HTTP 200.
+  // Esse retorno SÓ acontece depois do COMMIT do payload no PostgreSQL.
+  // A regra financeira executa em transação independente, com reprocessamento.
+  // Não usar 200 se a persistência falhar.
+
+  /** Guarda apenas os campos necessários; dados de cartão/token NÃO são armazenados. */
+  private payloadMinimo(payload: AsaasWebhookPayload): Prisma.InputJsonObject {
+    const campos = (valor: unknown, permitidos: string[]): Prisma.InputJsonObject | undefined => {
+      if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return undefined;
+      const origem = valor as Record<string, unknown>;
+      const destino: Record<string, Prisma.InputJsonValue> = {};
+      for (const chave of permitidos) {
+        const item = origem[chave];
+        if (typeof item === 'string' || typeof item === 'number' ||
+            typeof item === 'boolean') {
+          destino[chave] = item;
+        }
+      }
+      return destino;
+    };
 
     return {
-      ...criacao,
-      confirmacao,
-      mensagem:
-        'Cobrança registrada e confirmação processada.',
+      id: payload.id,
+      event: payload.event,
+      ...(payload.dateCreated ? { dateCreated: payload.dateCreated } : {}),
+      ...(payload.checkout ? { checkout: campos(payload.checkout,
+        ['id', 'status', 'customer', 'externalReference']) ?? {} } : {}),
+      ...(payload.subscription ? { subscription: campos(payload.subscription,
+        ['id', 'customer', 'checkoutSession', 'externalReference']) ?? {} } : {}),
+      ...(payload.payment ? { payment: campos(payload.payment,
+        ['id', 'subscription', 'customer', 'checkoutSession', 'externalReference',
+         'status', 'value', 'dueDate', 'paymentDate', 'confirmedDate']) ?? {} } : {}),
     };
   }
-
-  return criacao;
-}
-
-    case 'PAYMENT_CONFIRMED':
-    case 'PAYMENT_RECEIVED':
-      return this.processarPaymentConfirmed(
-        tx,
-        payload,
-      );
-
-    case 'PAYMENT_OVERDUE':
-      return this.processarPaymentOverdue(
-        tx,
-        payload,
-      );
-
-    case 'SUBSCRIPTION_DELETED':
-      return this.processarSubscriptionDeleted(
-        tx,
-        payload,
-      );
-
-    case 'PAYMENT_DELETED':
-      return this.processarPaymentDeleted(
-        tx,
-        payload,
-      );
-
-    default:
-      return {
-        mensagem:
-          'Evento recebido sem regra de negócio implementada.',
-      };
-  }
-}
-
-  // ==========================================
-  // RECEBIMENTO DO WEBHOOK
-  // ==========================================
 
   async receberEventoAsaas(
     tokenRecebido: string | undefined,
     payloadRecebido: unknown,
   ) {
     this.validarToken(tokenRecebido);
+    const payload = this.validarPayload(payloadRecebido);
+    const seguro = this.payloadMinimo(payload);
 
-    const payload =
-      this.validarPayload(payloadRecebido);
-
-    const existente =
-      await this.prisma.eventoWebhook.findUnique({
-        where: {
+    // Não sobrescreve um evento existente; preserva idempotência e evidências.
+    // P2002 é esperado quando o Asaas envia duas cópias ao mesmo tempo.
+    let duplicado = false;
+    try {
+      await this.prisma.eventoWebhook.create({
+        data: {
           id_evento: payload.id,
+          provedor: 'ASAAS',
+          tipo: payload.event,
+          payload: seguro,
+          situacao: 'PENDENTE',
         },
       });
-
-    if (existente) {
-      return {
-        recebido: true,
-        duplicado: true,
-        id_evento: existente.id_evento,
-        evento: existente.tipo,
-        mensagem:
-          'Evento já havia sido recebido anteriormente.',
-      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        duplicado = true;
+      } else {
+        // Sem persistência não pode confirmar o recebimento ao Asaas.
+        throw error;
+      }
     }
 
+    // O worker será acionado periodicamente; sem aguardar o processamento
+    // financeiro no request HTTP. Isso evita bloquear a fila do Asaas.
+    return {
+      recebido: true,
+      duplicado,
+      id_evento: payload.id,
+      evento: payload.event,
+      mensagem: 'Webhook armazenado para processamento seguro.',
+    };
+  }
+
+  private async processarLote(): Promise<void> {
+    if (this.executandoLote) return;
+    this.executandoLote = true;
     try {
-      // A regra de negócio e o registro do evento
-      // são executados dentro da mesma transação.
-      const resultado = await this.prisma.$transaction(
-        async (tx) => {
-          // 1. Executa a regra de negócio.
-          const processamento =
-            await this.processarEvento(tx, payload);
-
-          // 2. Registra o evento somente após
-          // o processamento bem-sucedido.
-          const eventoSalvo =
-            await tx.eventoWebhook.create({
-              data: {
-                id_evento: payload.id,
-                provedor: 'ASAAS',
-                tipo: payload.event,
-              },
-            });
-
-          return {
-            recebido: true,
-            duplicado: false,
-            id_evento: eventoSalvo.id_evento,
-            evento: eventoSalvo.tipo,
-            processamento,
-            mensagem:
-              'Evento do Asaas processado com sucesso.',
-          };
+      const agora = new Date();
+      // Eventos cujo processo morreu antes do COMMIT podem ser retomados.
+      const pendentes = await this.prisma.eventoWebhook.findMany({
+        where: {
+          OR: [
+            { situacao: 'PENDENTE', proxima_tentativa_em: { lte: agora } },
+            { situacao: 'PROCESSANDO', bloqueado_ate: { lt: agora } },
+          ],
         },
-      );
-
-      console.log('[ASAAS WEBHOOK]', resultado);
-
-      return resultado;
+        orderBy: { recebido_em: 'asc' },
+        take: 20,
+        select: { id_evento: true },
+      });
+      for (const item of pendentes) await this.processarArmazenado(item.id_evento);
     } catch (error) {
-      // Proteção contra recebimento simultâneo
-      // do mesmo evento.
-      if (
-        error instanceof
-          Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        const eventoExistente =
-          await this.prisma.eventoWebhook.findUnique({
-            where: {
-              id_evento: payload.id,
-            },
-          });
+      this.logger.error('Falha ao consultar inbox de webhooks',
+        error instanceof Error ? error.stack : String(error));
+    } finally {
+      this.executandoLote = false;
+    }
+  }
 
-        if (eventoExistente) {
-          return {
-            recebido: true,
-            duplicado: true,
-            id_evento: payload.id,
-            evento: eventoExistente.tipo,
-            mensagem:
-              'Evento duplicado ignorado com sucesso.',
-          };
-        }
+  private async processarArmazenado(idEvento: string): Promise<void> {
+    const agora = new Date();
+    const bloqueadoAte = new Date(agora.getTime() + 2 * 60 * 1000);
+    // Claim atômico: múltiplos processos NestJS não pegam o mesmo evento.
+    const claim = await this.prisma.eventoWebhook.updateMany({
+      where: {
+        id_evento: idEvento,
+        OR: [
+          { situacao: 'PENDENTE', proxima_tentativa_em: { lte: agora } },
+          { situacao: 'PROCESSANDO', bloqueado_ate: { lt: agora } },
+        ],
+      },
+      data: {
+        situacao: 'PROCESSANDO',
+        bloqueado_ate: bloqueadoAte,
+        ultima_tentativa_em: agora,
+        tentativas: { increment: 1 },
+      },
+    });
+    if (claim.count === 0) return;
+
+    const evento = await this.prisma.eventoWebhook.findUniqueOrThrow({
+      where: { id_evento: idEvento },
+    });
+
+    try {
+      // Processamento financeiro + marcação de sucesso no MESMO COMMIT.
+      // Se o NestJS morrer antes do COMMIT, nada é confirmado parcialmente.
+      await this.prisma.$transaction(async tx => {
+        const payload = this.validarPayload(evento.payload);
+        await this.processarEvento(tx, payload);
+        await tx.eventoWebhook.update({
+          where: { id_evento: idEvento },
+          data: {
+            situacao: 'PROCESSADO',
+            processado_em: new Date(),
+            bloqueado_ate: null,
+            erro: null,
+          },
+        });
+      }, { timeout: 20000 });
+      this.logger.log(`[ASAAS] Processado: ${evento.tipo} / ${idEvento}`);
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : String(error);
+      const semVinculo = error instanceof NotFoundException ||
+        error instanceof ConflictException || error instanceof BadRequestException;
+      const limite = evento.tentativas >= 7; // inclui uma tentativa iniciada no claim
+      const reconciliacao = semVinculo || limite;
+      const minutos = Math.min(60, 2 ** Math.min(evento.tentativas, 5));
+      try {
+        await this.prisma.eventoWebhook.updateMany({
+          where: { id_evento: idEvento, situacao: 'PROCESSANDO' },
+          data: {
+            situacao: reconciliacao ? 'RECONCILIACAO' : 'PENDENTE',
+            bloqueado_ate: null,
+            erro: mensagem.slice(0, 2000),
+            proxima_tentativa_em: new Date(Date.now() + minutos * 60000),
+          },
+        });
+      } catch (persistError) {
+        this.logger.error(`Erro ao registrar falha do webhook ${idEvento}`,
+          persistError instanceof Error ? persistError.stack : String(persistError));
+        // A marca PROCESSANDO expira pelo lease e o evento volta a ser elegível.
       }
-
-      throw error;
+      this.logger.warn(`[ASAAS] ${reconciliacao ? 'RECONCILIACAO' : 'RETRY'}: ` +
+        `${evento.tipo} / ${idEvento}: ${mensagem}`);
     }
   }
 }

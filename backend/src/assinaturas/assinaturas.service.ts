@@ -20,7 +20,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AsaasService } from '../asaas/asaas.service';
 
 import {
-  adicionarMeses,
   hojeComoData,
   mesesDoPeriodo,
 } from '../common/periodo-cobranca';
@@ -190,15 +189,9 @@ export class AssinaturasService {
   // HU37 - CONTRATAÇÃO MANUAL
   // ============================================
   //
-  // Mantém o funcionamento antigo do Route Cash.
-  //
-  // Neste fluxo:
-  //
-  // - assinatura é criada imediatamente;
-  // - situação = ATIVA;
-  // - origem = MANUAL;
-  // - datas são preenchidas imediatamente;
-  // - não existe Checkout Asaas.
+  // Fluxo manual: cria PENDENTE, sem datas de acesso.
+  // Apenas o administrador pode ativar posteriormente, conforme RF17.
+  // Não permite contornar o paywall sem confirmação de pagamento.
   //
   async contratar(
     usuarioId: string,
@@ -265,8 +258,7 @@ export class AssinaturasService {
       );
     }
 
-    const inicio = hojeComoData();
-
+    // Assinatura manual só será ativada por ação administrativa autorizada.
     try {
       const criada =
         await this.prisma.assinatura.create({
@@ -418,8 +410,14 @@ export class AssinaturasService {
           checkout_id:
             aberta.asaas_checkout_id,
 
+          // A API do Asaas retorna o link no checkout novo. Para
+          // checkout reutilizado o banco guarda apenas o ID, então
+          // montamos a URL pelo ambiente configurado. Confirmar o
+          // formato da URL de produção antes do deploy definitivo.
           checkout_url:
-            `https://asaas.com/checkoutSession/show?id=${aberta.asaas_checkout_id}`,
+            (process.env.ASAAS_BASE_URL ?? '').includes('api-sandbox.asaas.com')
+              ? `https://sandbox.asaas.com/000/checkoutSession/show/${aberta.asaas_checkout_id}`
+              : `https://asaas.com/checkoutSession/show?id=${aberta.asaas_checkout_id}`,
 
           checkout_reutilizado: true,
         };
@@ -590,6 +588,54 @@ export class AssinaturasService {
   }
 
   // ============================================
+  // DIAGNÓSTICO DE ASSINATURAS — SOMENTE DESENVOLVIMENTO
+  // ============================================
+  // Habilitar com ROUTECASH_DEBUG_ASSINATURA=true no .env.
+  // Remover/desabilitar após a investigação do Flutter.
+  private diagnosticoAssinaturaAtivo(): boolean {
+    return (
+      process.env.NODE_ENV !== 'production' &&
+      process.env.ROUTECASH_DEBUG_ASSINATURA === 'true'
+    );
+  }
+
+  private async diagnosticarAssinaturasDoUsuario(
+    usuarioId: string,
+    hoje: Date,
+  ): Promise<void> {
+    const registros = await this.prisma.assinatura.findMany({
+      where: { id_usuario: usuarioId },
+      select: {
+        id_assinatura: true,
+        situacao: true,
+        origem: true,
+        data_inicio: true,
+        data_vencimento: true,
+      },
+      orderBy: { data_cadastro: 'desc' },
+      take: 5,
+    });
+
+    console.log('[ASSINATURA][DIAGNOSTICO] Assinaturas do JWT', {
+      usuarioId,
+      hoje: hoje.toISOString(),
+      registros: registros.map((a) => ({
+        assinaturaId: a.id_assinatura,
+        situacao: a.situacao,
+        origem: a.origem,
+        inicio: a.data_inicio?.toISOString() ?? null,
+        vencimento: a.data_vencimento?.toISOString() ?? null,
+        elegivel:
+          a.situacao === SituacaoAssinatura.ATIVA &&
+          a.data_inicio !== null &&
+          a.data_vencimento !== null &&
+          a.data_inicio.getTime() <= hoje.getTime() &&
+          a.data_vencimento.getTime() >= hoje.getTime(),
+      })),
+    });
+  }
+
+  // ============================================
   // AUTORIZAÇÃO OFFLINE - ATÉ 7 DIAS
   // ============================================
   // Requer assinatura ATIVA com período vigente.
@@ -601,6 +647,16 @@ export class AssinaturasService {
   async emitirAutorizacaoOffline(usuarioId: string) {
     const hoje = hojeComoData();
 
+    // DIAGNÓSTICO TEMPORÁRIO: ativar apenas no desenvolvimento com
+    // ROUTECASH_DEBUG_ASSINATURA=true no .env (reiniciar o NestJS).
+    // Nunca imprimir JWT, token offline, chave de assinatura ou dados pessoais.
+    if (this.diagnosticoAssinaturaAtivo()) {
+      console.log('[ASSINATURA][OFFLINE] Início', {
+        usuarioId,
+        hoje: hoje.toISOString(),
+      });
+    }
+
     // Mesma regra de elegibilidade usada no guard.
     const assinatura = await this.prisma.assinatura.findFirst({
       where: {
@@ -611,6 +667,20 @@ export class AssinaturasService {
       },
       orderBy: { data_cadastro: 'desc' },
     });
+
+    if (this.diagnosticoAssinaturaAtivo()) {
+      console.log('[ASSINATURA][OFFLINE] Consulta de elegibilidade', {
+        usuarioId,
+        encontrada: Boolean(assinatura),
+        assinaturaId: assinatura?.id_assinatura ?? null,
+        situacao: assinatura?.situacao ?? null,
+        inicio: assinatura?.data_inicio?.toISOString() ?? null,
+        vencimento: assinatura?.data_vencimento?.toISOString() ?? null,
+      });
+      if (!assinatura) {
+        await this.diagnosticarAssinaturasDoUsuario(usuarioId, hoje);
+      }
+    }
 
     if (!assinatura?.data_vencimento) {
       throw new ForbiddenException({
@@ -627,20 +697,10 @@ export class AssinaturasService {
     }
 
     const agora = new Date();
+    const seteDias = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-const prazoSegundos =
-  process.env.NODE_ENV !== 'production' &&
-  process.env.OFFLINE_TESTE_120S === 'true'
-    ? 120
-    : 7 * 24 * 60 * 60;
-
-const seteDias = new Date(
-  agora.getTime() + prazoSegundos * 1000,
-);
-
-console.log('[TESTE OFFLINE] NODE_ENV:', process.env.NODE_ENV);
-console.log('[TESTE OFFLINE] Flag:', process.env.OFFLINE_TESTE_120S);
-console.log('[TESTE OFFLINE] Prazo em segundos:', prazoSegundos);
+    // Validade normal de sete dias, também limitada ao vencimento do plano.
+    // Testes curtos devem ser feitos somente em ambiente isolado.
 
     // data_vencimento é uma data de calendário inclusiva.
     // Mantém o uso até o fim desse dia em UTC, sem estender
@@ -690,6 +750,14 @@ console.log('[TESTE OFFLINE] Prazo em segundos:', prazoSegundos);
       const assinaturaDigital = sign(null, Buffer.from(conteudo), chavePrivada)
         .toString('base64url');
 
+      if (this.diagnosticoAssinaturaAtivo()) {
+        console.log('[ASSINATURA][OFFLINE] Autorização emitida', {
+          usuarioId,
+          assinaturaId: assinatura.id_assinatura,
+          expiraEm: expiracao.toISOString(),
+        });
+      }
+
       return {
         autorizado: true,
         situacao: 'ATIVA',
@@ -714,6 +782,21 @@ console.log('[TESTE OFFLINE] Prazo em segundos:', prazoSegundos);
   ) {
     const atual =
       await this.buscarEmAberto(usuarioId);
+
+    // A Home pode exibir a assinatura mais recente em aberto,
+    // enquanto o Guard verifica especificamente uma ATIVA e vigente.
+    // Este log permite detectar essa diferença sem alterar a regra.
+    if (this.diagnosticoAssinaturaAtivo()) {
+      console.log('[ASSINATURA][ATUAL] Resultado', {
+        usuarioId,
+        assinaturaId: atual?.id_assinatura ?? null,
+        situacao: atual?.situacao ?? null,
+        inicio: atual?.data_inicio?.toISOString() ?? null,
+        vencimento: atual?.data_vencimento?.toISOString() ?? null,
+        hoje: hojeComoData().toISOString(),
+      });
+      await this.diagnosticarAssinaturasDoUsuario(usuarioId, hojeComoData());
+    }
 
     if (!atual) {
       throw new NotFoundException(

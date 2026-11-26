@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/secure_storage.dart';
+import 'package:flutter/foundation.dart';
 
 /// Verifica a autorizacao offline assinada pelo NestJS.
 /// Formato do token: base64url(JSON payload) + '.' + base64url(Ed25519(payloadB64url)).
@@ -28,6 +29,11 @@ class OfflineAuthorizationService {
   /// Solicita uma nova autorizacao ao backend.
   /// Em 401/403, descarta o token local; em falha de rede/5xx, preserva-o.
   static Future<bool> renovarSilenciosamente() async {
+    // DIAGNÓSTICO TEMPORÁRIO
+    debugPrint(
+      '[OFFLINE AUTH] Chave pública configurada: '
+      '${_publicKeySpkiB64.isNotEmpty}',
+    );
     final userId = await SecureStorage.getUserId();
     if (userId == null || userId.isEmpty) return false;
 
@@ -50,7 +56,14 @@ class OfflineAuthorizationService {
       if (data['autorizado'] != true || token is! String) return false;
 
       // Nao grava uma autorizacao sem validar assinatura, usuario e prazo.
-      if (!await _verificarToken(token, userId)) return false;
+      final tokenValido = await _verificarToken(token, userId);
+
+      debugPrint(
+        '[OFFLINE AUTH] Token recebido. '
+        'Assinatura válida: $tokenValido',
+      );
+
+      if (!tokenValido) return false;
 
       await _storage.write(key: _storageKey(userId), value: token);
       return true;
